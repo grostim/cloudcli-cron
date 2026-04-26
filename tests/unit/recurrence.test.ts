@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRecurrenceSummary, nextOccurrenceForRecurrence } from "../../src/server/recurrence.js";
+import { formatRecurrenceSummary, nextOccurrenceForRecurrence, validateRecurrenceDefinition } from "../../src/server/recurrence.js";
 
 describe("recurrence", () => {
   it("computes the next daily occurrence", () => {
@@ -39,5 +39,16 @@ describe("recurrence", () => {
     });
 
     expect(summary).toContain("monday");
+  });
+
+  it("rejects invalid weekday values", () => {
+    expect(() =>
+      validateRecurrenceDefinition({
+        scheduleType: "weekdays",
+        timezone: "Europe/Paris",
+        localTime: "09:00",
+        weekdays: ["mon" as never]
+      })
+    ).toThrow("Invalid weekday: mon");
   });
 });

@@ -61,6 +61,22 @@ describe("plugin RPC contracts", () => {
     ).toThrow("enabled must be a boolean");
   });
 
+  it("rejects whitespace-only update strings", () => {
+    expect(() =>
+      parseUpdateTaskRequest({
+        workspacePath: "/tmp/project",
+        name: "   "
+      })
+    ).toThrow("name must be a non-empty string when provided");
+
+    expect(() =>
+      parseUpdateTaskRequest({
+        workspacePath: "/tmp/project",
+        prompt: "   "
+      })
+    ).toThrow("prompt must be a non-empty string when provided");
+  });
+
   it("parses enabled state updates for pause and resume transitions", () => {
     expect(parseUpdateTaskRequest({
       workspacePath: "/tmp/project",

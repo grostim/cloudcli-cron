@@ -10,9 +10,11 @@ import type {
   WeeklyRecurrenceDefinition,
   WorkspaceTask
 } from "../../shared/model.js";
+import { formatRecurrenceSummary, nextOccurrenceForRecurrence, validateRecurrenceDefinition } from "../../server/recurrence.js";
 
 export interface TaskFormHandlers {
   onSubmit(request: Omit<CreateTaskRequest, "workspacePath">): void;
+  onCancelEdit(): void;
 }
 
 function recurrenceFields(task: WorkspaceTask | null): string {
@@ -91,6 +93,11 @@ function buildRecurrence(formData: FormData): RecurrenceDefinition {
   }
 }
 
+function summarizeDraft(recurrence: RecurrenceDefinition): string {
+  const nextRunAt = nextOccurrenceForRecurrence(recurrence);
+  return `${formatRecurrenceSummary(recurrence)}${nextRunAt ? ` | Next run: ${nextRunAt}` : " | Next run: unavailable"}`;
+}
+
 export function renderTaskForm(task: WorkspaceTask | null, handlers: TaskFormHandlers): HTMLElement {
   const section = document.createElement("section");
   section.className = "task-form";
@@ -100,7 +107,12 @@ export function renderTaskForm(task: WorkspaceTask | null, handlers: TaskFormHan
       <label>Name <input name="name" value="${task?.name ?? ""}" required></label>
       <label>Prompt <textarea name="prompt" rows="6" required>${task?.prompt ?? ""}</textarea></label>
       ${recurrenceFields(task)}
-      <button type="submit">${task ? "Save Task" : "Create Task"}</button>
+      <p data-testid="task-form-feedback"></p>
+      <p data-testid="task-form-preview"></p>
+      <div>
+        <button type="submit">${task ? "Save Task" : "Create Task"}</button>
+        ${task ? '<button type="button" data-testid="cancel-edit">Cancel</button>' : ""}
+      </div>
     </form>
   `;
 
@@ -109,15 +121,62 @@ export function renderTaskForm(task: WorkspaceTask | null, handlers: TaskFormHan
     throw new Error("Task form failed to render");
   }
 
+  const feedback = section.querySelector<HTMLElement>('[data-testid="task-form-feedback"]');
+  const preview = section.querySelector<HTMLElement>('[data-testid="task-form-preview"]');
+  const cancel = section.querySelector<HTMLButtonElement>('[data-testid="cancel-edit"]');
+
+  if (!feedback || !preview) {
+    throw new Error("Task form feedback elements failed to render");
+  }
+
+  const refreshPreview = (): RecurrenceDefinition | null => {
+    feedback.textContent = "";
+    const formData = new FormData(form);
+    const name = String(formData.get("name") ?? "").trim();
+    const prompt = String(formData.get("prompt") ?? "").trim();
+
+    if (!name || !prompt) {
+      preview.textContent = "Complete the name and prompt to preview this schedule.";
+      return null;
+    }
+
+    try {
+      const recurrence = buildRecurrence(formData);
+      validateRecurrenceDefinition(recurrence);
+      preview.textContent = summarizeDraft(recurrence);
+      return recurrence;
+    } catch (error) {
+      preview.textContent = "Preview unavailable.";
+      feedback.textContent = error instanceof Error ? error.message : "Invalid schedule.";
+      return null;
+    }
+  };
+
+  form.addEventListener("input", () => {
+    refreshPreview();
+  });
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const formData = new FormData(form);
-    handlers.onSubmit({
-      name: String(formData.get("name") ?? "").trim(),
-      prompt: String(formData.get("prompt") ?? "").trim(),
-      recurrence: buildRecurrence(formData)
-    });
+    const name = String(formData.get("name") ?? "").trim();
+    const prompt = String(formData.get("prompt") ?? "").trim();
+
+    if (!name || !prompt) {
+      feedback.textContent = "Name and prompt are required.";
+      return;
+    }
+
+    const recurrence = refreshPreview();
+    if (!recurrence) {
+      return;
+    }
+
+    handlers.onSubmit({ name, prompt, recurrence });
   });
+
+  cancel?.addEventListener("click", () => handlers.onCancelEdit());
+  refreshPreview();
 
   return section;
 }

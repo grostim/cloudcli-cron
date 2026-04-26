@@ -29,6 +29,16 @@ describe("plugin RPC contracts", () => {
     expect(parsed.recurrence.scheduleType).toBe("daily");
   });
 
+  it("rejects malformed create-task payloads", () => {
+    expect(() =>
+      parseCreateTaskRequest({
+        workspacePath: "/tmp/project",
+        name: "Morning summary",
+        prompt: "Summarize open work."
+      })
+    ).toThrow("recurrence must be an object");
+  });
+
   it("rejects invalid update payloads", () => {
     expect(() =>
       parseUpdateTaskRequest({

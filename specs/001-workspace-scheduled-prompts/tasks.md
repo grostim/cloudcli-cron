@@ -55,18 +55,18 @@
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Extend contract tests for task creation and task update payload validation in `tests/contract/plugin-rpc.test.ts`
-- [ ] T018 [P] [US1] Add integration coverage for create-task RPC, schedule preview, and persisted reload in `tests/integration/scheduler-loop.test.ts`
-- [ ] T019 [P] [US1] Add frontend jsdom test for task form validation, recurrence summary, and save states in `tests/integration/task-form.test.ts`
+- [X] T017 [P] [US1] Extend contract tests for task creation and task update payload validation in `tests/contract/plugin-rpc.test.ts`
+- [X] T018 [P] [US1] Add integration coverage for create-task RPC, schedule preview, and persisted reload in `tests/integration/scheduler-loop.test.ts`
+- [X] T019 [P] [US1] Add frontend jsdom test for task form validation, recurrence summary, and save states in `tests/integration/task-form.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T020 [P] [US1] Implement task create/update/delete/duplicate handlers and recurrence summary generation in `src/server/http.ts`
-- [ ] T021 [P] [US1] Implement schedule-form state, validation rules, and recurrence summary formatting in `src/client/state.ts` and `src/client/app.ts`
-- [ ] T022 [P] [US1] Build the schedule list UI with empty/loading/success states in `src/client/views/schedule-list.ts`
-- [ ] T023 [P] [US1] Build the create/edit task form UI for one-time, daily, weekday, weekly, and monthly schedules in `src/client/views/task-form.ts`
-- [ ] T024 [US1] Wire the frontend module mount/unmount flow and workspace context subscriptions in `src/index.ts` and `src/client/app.ts`
-- [ ] T025 [US1] Recalculate `nextRunAt` after create/edit/pause/resume mutations in `src/server/scheduler.ts` and `src/server/recurrence.ts`
+- [X] T020 [P] [US1] Implement task create/update/delete/duplicate handlers and recurrence summary generation in `src/server/http.ts`
+- [X] T021 [P] [US1] Implement schedule-form state, validation rules, and recurrence summary formatting in `src/client/state.ts` and `src/client/app.ts`
+- [X] T022 [P] [US1] Build the schedule list UI with empty/loading/success states in `src/client/views/schedule-list.ts`
+- [X] T023 [P] [US1] Build the create/edit task form UI for one-time, daily, weekday, weekly, and monthly schedules in `src/client/views/task-form.ts`
+- [X] T024 [US1] Wire the frontend module mount/unmount flow and workspace context subscriptions in `src/index.ts` and `src/client/app.ts`
+- [X] T025 [US1] Recalculate `nextRunAt` after create/edit/pause/resume mutations in `src/server/scheduler.ts` and `src/server/recurrence.ts`
 
 **Checkpoint**: User Story 1 is fully functional and independently testable.
 

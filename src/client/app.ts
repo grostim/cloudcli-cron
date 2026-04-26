@@ -1,4 +1,4 @@
-import type { CreateTaskRequest } from "../shared/contracts.js";
+import type { CreateTaskRequest, UpdateTaskRequest } from "../shared/contracts.js";
 import type { WorkspaceTask } from "../shared/model.js";
 import type { PluginAPI } from "../types.js";
 import { PluginRpcClient } from "./api.js";
@@ -74,6 +74,30 @@ export class WorkspaceScheduledPromptsApp {
 
     const response = await this.rpc.createTask({ ...request, workspacePath });
     this.state.upsertTask(response.task);
+    this.state.patch({ editingTaskId: null, error: null });
+  }
+
+  private async handleSaveTask(request: Omit<CreateTaskRequest, "workspacePath">): Promise<void> {
+    const workspacePath = this.state.snapshot.workspacePath;
+    const editingTaskId = this.state.snapshot.editingTaskId;
+    if (!workspacePath) {
+      return;
+    }
+
+    if (!editingTaskId) {
+      await this.handleCreateTask(request);
+      return;
+    }
+
+    const update: UpdateTaskRequest = {
+      workspacePath,
+      name: request.name,
+      prompt: request.prompt,
+      recurrence: request.recurrence
+    };
+    const response = await this.rpc.updateTask(editingTaskId, update);
+    this.state.upsertTask(response.task);
+    this.state.patch({ editingTaskId: null, error: null });
   }
 
   private render(): void {
@@ -106,10 +130,11 @@ export class WorkspaceScheduledPromptsApp {
     root.append(
       renderTaskForm(this.currentEditingTask(), {
         onSubmit: (request) => {
-          void this.handleCreateTask(request).catch((error) => {
+          void this.handleSaveTask(request).catch((error) => {
             this.state.patch({ error: error instanceof Error ? error.message : "Failed to save task." });
           });
-        }
+        },
+        onCancelEdit: () => this.state.patch({ editingTaskId: null, error: null })
       })
     );
     root.append(

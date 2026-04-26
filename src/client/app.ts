@@ -348,7 +348,7 @@ export class WorkspaceScheduledPromptsApp {
     this.container.innerHTML = "";
   }
 
-  async loadFromContext(workspacePath: string | null): Promise<void> {
+  async loadFromContext(workspacePath: string | null): Promise<boolean> {
     if (!workspacePath) {
       this.state.replace({
         workspacePath: null,
@@ -362,7 +362,7 @@ export class WorkspaceScheduledPromptsApp {
         editingTaskId: null,
         highlightedTaskId: null
       });
-      return;
+      return true;
     }
 
     this.state.patch({
@@ -385,6 +385,7 @@ export class WorkspaceScheduledPromptsApp {
         successMessage: null,
         highlightedTaskId: null
       });
+      return true;
     } catch (error) {
       this.state.patch({
         busy: false,
@@ -392,6 +393,7 @@ export class WorkspaceScheduledPromptsApp {
         executionProfile: null,
         successMessage: null
       });
+      return false;
     }
   }
 
@@ -405,7 +407,10 @@ export class WorkspaceScheduledPromptsApp {
     successMessage: string,
     highlightedTaskId: string | null
   ): Promise<void> {
-    await this.loadFromContext(workspacePath);
+    const refreshed = await this.loadFromContext(workspacePath);
+    if (!refreshed) {
+      return;
+    }
     this.state.patch({
       successMessage,
       highlightedTaskId,

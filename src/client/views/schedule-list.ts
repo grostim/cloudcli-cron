@@ -9,6 +9,14 @@ export interface ScheduleListHandlers {
   onRunNow(taskId: string): void;
 }
 
+function confirmDelete(taskName: string): boolean {
+  if (typeof globalThis.confirm !== "function") {
+    return true;
+  }
+
+  return globalThis.confirm(`Delete schedule "${taskName}"?`);
+}
+
 export function renderScheduleList(
   tasks: WorkspaceTask[],
   handlers: ScheduleListHandlers,
@@ -72,7 +80,12 @@ export function renderScheduleList(
 
     const remove = document.createElement("button");
     remove.textContent = "Delete";
-    remove.addEventListener("click", () => handlers.onDelete(task.id));
+    remove.addEventListener("click", () => {
+      if (!confirmDelete(task.name)) {
+        return;
+      }
+      handlers.onDelete(task.id);
+    });
     controls.append(remove);
 
     item.append(controls);

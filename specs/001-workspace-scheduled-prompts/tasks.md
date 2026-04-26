@@ -106,17 +106,17 @@
 
 ### Tests for User Story 3
 
-- [ ] T036 [P] [US3] Extend contract tests for pause, resume, duplicate, delete, and run-now actions in `tests/contract/plugin-rpc.test.ts`
-- [ ] T037 [P] [US3] Add integration tests for lifecycle transitions and paused-task non-execution in `tests/integration/scheduler-loop.test.ts`
-- [ ] T038 [P] [US3] Add frontend jsdom test for list actions, confirmation flows, and post-action state refresh in `tests/integration/schedule-actions.test.ts`
+- [X] T036 [P] [US3] Extend contract tests for pause, resume, duplicate, delete, and run-now actions in `tests/contract/plugin-rpc.test.ts`
+- [X] T037 [P] [US3] Add integration tests for lifecycle transitions and paused-task non-execution in `tests/integration/scheduler-loop.test.ts`
+- [X] T038 [P] [US3] Add frontend jsdom test for list actions, confirmation flows, and post-action state refresh in `tests/integration/schedule-actions.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T039 [P] [US3] Implement pause, resume, duplicate, delete, and manual run-now handlers in `src/server/http.ts`
-- [ ] T040 [P] [US3] Implement scheduler reactions to lifecycle transitions, including in-flight protection and future occurrence recalculation in `src/server/scheduler.ts`
-- [ ] T041 [P] [US3] Add task action controls, confirmations, and optimistic-state recovery in `src/client/views/schedule-list.ts`
-- [ ] T042 [P] [US3] Support editing prefilled tasks and lifecycle-driven form resets in `src/client/views/task-form.ts` and `src/client/state.ts`
-- [ ] T043 [US3] Wire action dispatch and post-mutation reconciliation across task list, run history, and execution banner in `src/client/app.ts`
+- [X] T039 [P] [US3] Implement pause, resume, duplicate, delete, and manual run-now handlers in `src/server/http.ts`
+- [X] T040 [P] [US3] Implement scheduler reactions to lifecycle transitions, including in-flight protection and future occurrence recalculation in `src/server/scheduler.ts`
+- [X] T041 [P] [US3] Add task action controls, confirmations, and optimistic-state recovery in `src/client/views/schedule-list.ts`
+- [X] T042 [P] [US3] Support editing prefilled tasks and lifecycle-driven form resets in `src/client/views/task-form.ts` and `src/client/state.ts`
+- [X] T043 [US3] Wire action dispatch and post-mutation reconciliation across task list, run history, and execution banner in `src/client/app.ts`
 
 **Checkpoint**: All user stories are independently functional.
 

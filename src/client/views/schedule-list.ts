@@ -6,6 +6,7 @@ export interface ScheduleListHandlers {
   onPause(taskId: string): void;
   onResume(taskId: string): void;
   onDuplicate(taskId: string): void;
+  onRunNow(taskId: string): void;
 }
 
 export function renderScheduleList(
@@ -63,6 +64,11 @@ export function renderScheduleList(
     duplicate.textContent = "Duplicate";
     duplicate.addEventListener("click", () => handlers.onDuplicate(task.id));
     controls.append(duplicate);
+
+    const runNow = document.createElement("button");
+    runNow.textContent = "Run Now";
+    runNow.addEventListener("click", () => handlers.onRunNow(task.id));
+    controls.append(runNow);
 
     const remove = document.createElement("button");
     remove.textContent = "Delete";

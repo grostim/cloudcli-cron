@@ -1,10 +1,11 @@
-import type { ExecutionCapability, ScheduledRun, WorkspaceTask } from "../shared/model.js";
+import type { ExecutionCapability, ExecutionProfile, ScheduledRun, WorkspaceTask } from "../shared/model.js";
 
 export interface AppState {
   workspacePath: string | null;
   tasks: WorkspaceTask[];
   runs: ScheduledRun[];
   capability: ExecutionCapability;
+  executionProfile: ExecutionProfile | null;
   error: string | null;
   successMessage: string | null;
   busy: boolean;
@@ -25,6 +26,7 @@ export class AppStateStore {
     tasks: [],
     runs: [],
     capability: DEFAULT_CAPABILITY,
+    executionProfile: null,
     error: null,
     successMessage: null,
     busy: false,

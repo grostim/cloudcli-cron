@@ -94,7 +94,7 @@ export function createHttpHandler(scheduler: SchedulerService): http.RequestList
       if (request.method === "PUT" && url.pathname === "/v1/execution-profile") {
         const profile = await scheduler.saveExecutionProfile(parseExecutionProfileRequest(await readJsonBody(request)));
         const capability = createCapability(request.headers, profile);
-        const payload: ExecutionProfileResponse = { capability };
+        const payload: ExecutionProfileResponse = { capability, executionProfile: profile };
         json(response, 200, payload);
         return;
       }

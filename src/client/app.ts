@@ -355,6 +355,7 @@ export class WorkspaceScheduledPromptsApp {
         tasks: [],
         runs: [],
         capability: DEFAULT_CAPABILITY,
+        executionProfile: null,
         busy: false,
         error: null,
         successMessage: null,
@@ -378,6 +379,7 @@ export class WorkspaceScheduledPromptsApp {
         tasks: payload.tasks,
         runs: payload.runs,
         capability: payload.capability,
+        executionProfile: payload.executionProfile,
         busy: false,
         error: null,
         successMessage: null,
@@ -387,6 +389,7 @@ export class WorkspaceScheduledPromptsApp {
       this.state.patch({
         busy: false,
         error: error instanceof Error ? error.message : "Failed to load workspace state.",
+        executionProfile: null,
         successMessage: null
       });
     }
@@ -498,7 +501,30 @@ export class WorkspaceScheduledPromptsApp {
 
     const right = document.createElement("div");
     right.className = "wsp-stack";
-    right.append(renderExecutionBanner(snapshot.capability));
+    right.append(
+      renderExecutionBanner(snapshot.capability, snapshot.executionProfile, {
+        onSave: (request) => {
+          const workspacePath = this.state.snapshot.workspacePath;
+          if (!workspacePath) {
+            return;
+          }
+          void this.rpc.saveExecutionProfile({ ...request, workspacePath }).then((response) => {
+            this.state.patch({
+              capability: response.capability,
+              executionProfile: response.executionProfile,
+              error: null,
+              successMessage: "Execution settings saved.",
+              highlightedTaskId: null
+            });
+          }).catch((error) => {
+            this.state.patch({
+              error: error instanceof Error ? error.message : "Failed to save execution settings.",
+              successMessage: null
+            });
+          });
+        }
+      })
+    );
     right.append(
       renderScheduleList(snapshot.tasks, {
         onEdit: (taskId) => this.state.patch({
@@ -582,10 +608,57 @@ export class WorkspaceScheduledPromptsApp {
               successMessage: null
             });
           });
+        },
+        onRunNow: (taskId) => {
+          const workspacePath = this.state.snapshot.workspacePath;
+          if (!workspacePath) {
+            return;
+          }
+          void this.rpc.runNow(taskId, workspacePath).then((response) => {
+            this.state.patch({
+              runs: [response.run, ...this.state.snapshot.runs.filter((run) => run.id !== response.run.id)],
+              error: null
+            });
+            void this.loadFromContext(workspacePath).then(() => {
+              this.state.patch({
+                successMessage: "Manual run finished.",
+                highlightedTaskId: taskId
+              });
+            });
+          }).catch((error) => {
+            this.state.patch({
+              error: error instanceof Error ? error.message : "Failed to start manual run.",
+              successMessage: null
+            });
+          });
         }
       }, snapshot.highlightedTaskId)
     );
-    right.append(renderRunHistory(snapshot.runs));
+    right.append(renderRunHistory(snapshot.runs, {
+      onRetry: (runId) => {
+        const workspacePath = this.state.snapshot.workspacePath;
+        if (!workspacePath) {
+          return;
+        }
+        void this.rpc.retryRun(runId, workspacePath).then((response) => {
+          this.state.patch({
+            runs: [response.run, ...this.state.snapshot.runs.filter((run) => run.id !== response.run.id)],
+            error: null
+          });
+          void this.loadFromContext(workspacePath).then(() => {
+            this.state.patch({
+              successMessage: "Retry finished.",
+              highlightedTaskId: null
+            });
+          });
+        }).catch((error) => {
+          this.state.patch({
+            error: error instanceof Error ? error.message : "Failed to retry run.",
+            successMessage: null
+          });
+        });
+      }
+    }));
     main.append(left, right);
     root.append(main);
 

@@ -1,5 +1,6 @@
 import type {
   ExecutionCapability,
+  ExecutionProfile,
   RecurrenceDefinition,
   ScheduledRun,
   WorkspaceTask
@@ -38,12 +39,14 @@ export interface RunResponse {
 
 export interface WorkspaceStateResponse {
   capability: ExecutionCapability;
+  executionProfile: ExecutionProfile | null;
   tasks: WorkspaceTask[];
   runs: ScheduledRun[];
 }
 
 export interface ExecutionProfileResponse {
   capability: ExecutionCapability;
+  executionProfile: ExecutionProfile | null;
 }
 
 type UnknownRecord = Record<string, unknown>;

@@ -52,11 +52,22 @@ describe("plugin RPC contracts", () => {
     const parsed = parseExecutionProfileRequest({
       workspacePath: "/tmp/project",
       command: "codex",
-      args: ["exec", "--json", "{{prompt}}"],
+      args: ["exec", "--json"],
       timeoutMs: 120000
     });
 
     expect(parsed.command).toBe("codex");
     expect(parsed.args[0]).toBe("exec");
+  });
+
+  it("accepts an execution profile with no explicit args", () => {
+    const parsed = parseExecutionProfileRequest({
+      workspacePath: "/tmp/project",
+      command: "/usr/local/bin/run-scheduled-prompt",
+      args: []
+    });
+
+    expect(parsed.command).toContain("run-scheduled-prompt");
+    expect(parsed.args).toEqual([]);
   });
 });

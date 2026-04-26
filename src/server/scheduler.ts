@@ -21,7 +21,8 @@ import {
   occurrenceKeyForTask,
   validateRecurrenceDefinition
 } from "./recurrence.js";
-import { createExecutionProfile } from "./settings.js";
+import { LocalExecutionAdapter } from "./execution-adapter.js";
+import { createExecutionProfile, resolveExecutionCapability } from "./settings.js";
 import { listWorkspaceLedgers, loadWorkspaceLedger, saveWorkspaceLedger } from "./storage.js";
 
 function nowIso(): string {
@@ -61,11 +62,36 @@ function createRun(task: WorkspaceTask, scheduledFor: string, status: RunStatus,
   };
 }
 
+function createRunningRun(task: WorkspaceTask, scheduledFor: string): ScheduledRun {
+  return {
+    id: randomUUID(),
+    occurrenceKey: occurrenceKeyForTask(task.id, scheduledFor),
+    taskId: task.id,
+    workspaceKey: task.workspaceKey,
+    scheduledFor,
+    startedAt: nowIso(),
+    finishedAt: null,
+    status: "running",
+    outcomeSummary: "Command started.",
+    failureReason: null,
+    retryOfRunId: null,
+    executionRequest: null
+  };
+}
+
 export class SchedulerService {
+  private readonly executionAdapter: LocalExecutionAdapter;
+  private readonly inFlightOccurrences = new Set<string>();
+
+  constructor(executionAdapter = new LocalExecutionAdapter()) {
+    this.executionAdapter = executionAdapter;
+  }
+
   async loadWorkspaceState(workspacePath: string, capability: ExecutionCapability): Promise<WorkspaceStateResponse> {
     const ledger = await this.refreshWorkspaceLedger(workspacePath);
     return {
       capability,
+      executionProfile: ledger.executionProfile,
       tasks: ledger.tasks,
       runs: sortRunsDesc(ledger.runs)
     };
@@ -170,16 +196,17 @@ export class SchedulerService {
     return copy;
   }
 
-  async createManualRun(taskId: string, workspacePath: string, outcomeSummary = "Manual run queued."): Promise<ScheduledRun> {
+  async createManualRun(taskId: string, workspacePath: string): Promise<ScheduledRun> {
     const ledger = await loadWorkspaceLedger(workspacePath);
     const task = ledger.tasks.find((entry) => entry.id === taskId);
     if (!task) {
       throw new Error("Task not found");
     }
 
-    const run = createRun(task, nowIso(), "scheduled", outcomeSummary);
-    ledger.runs = trimRuns([run, ...ledger.runs]);
-    await saveWorkspaceLedger(ledger);
+    const scheduledFor = nowIso();
+    const run = await this.executeTask(ledger, task, scheduledFor, {
+      manual: true
+    });
     return run;
   }
 
@@ -189,7 +216,16 @@ export class SchedulerService {
     if (!existing) {
       throw new Error("Run not found");
     }
-    return this.createManualRun(existing.taskId, workspacePath, "Retry queued.");
+
+    const task = ledger.tasks.find((entry) => entry.id === existing.taskId);
+    if (!task) {
+      throw new Error("Task not found");
+    }
+
+    return this.executeTask(ledger, task, nowIso(), {
+      manual: true,
+      retryOfRunId: existing.id
+    });
   }
 
   async saveExecutionProfile(request: ExecutionProfileRequest): Promise<ExecutionProfile> {
@@ -234,11 +270,13 @@ export class SchedulerService {
         }
 
         const occurrenceKey = occurrenceKeyForTask(task.id, task.nextRunAt);
-        const alreadyTracked = ledger.runs.some((run) => run.occurrenceKey === occurrenceKey);
+        const alreadyTracked =
+          this.inFlightOccurrences.has(occurrenceKey) ||
+          ledger.runs.some((run) => run.occurrenceKey === occurrenceKey);
         if (!alreadyTracked) {
-          const missed = createRun(task, task.nextRunAt, "missed", "Automatic execution is not configured yet.");
-          ledger.runs = trimRuns([missed, ...ledger.runs]);
-          task.lastRunStatus = "missed";
+          await this.executeTask(ledger, task, task.nextRunAt);
+          changed = false;
+          continue;
         }
 
         task.nextRunAt = computeTaskNextRun(task, task.nextRunAt);
@@ -248,6 +286,73 @@ export class SchedulerService {
       if (changed) {
         await saveWorkspaceLedger(ledger);
       }
+    }
+  }
+
+  private async executeTask(
+    ledger: WorkspaceLedger,
+    task: WorkspaceTask,
+    scheduledFor: string,
+    options?: { manual?: boolean; retryOfRunId?: string | null }
+  ): Promise<ScheduledRun> {
+    const occurrenceKey = occurrenceKeyForTask(task.id, scheduledFor);
+    if (this.inFlightOccurrences.has(occurrenceKey)) {
+      throw new Error("This occurrence is already running.");
+    }
+
+    const profile = ledger.executionProfile;
+    const capability = resolveExecutionCapability(profile ?? null);
+
+    if (capability.status !== "ready" || !profile) {
+      const blockedStatus: RunStatus = options?.manual ? "failed" : "missed";
+      const blockedSummary = options?.manual
+        ? `Manual execution could not start. ${capability.message}`
+        : capability.message;
+      const blockedRun = createRun(task, scheduledFor, blockedStatus, blockedSummary);
+      blockedRun.retryOfRunId = options?.retryOfRunId ?? null;
+      ledger.runs = trimRuns([blockedRun, ...ledger.runs]);
+      task.lastRunStatus = blockedStatus;
+      if (!options?.manual) {
+        task.nextRunAt = computeTaskNextRun(task, scheduledFor);
+      }
+      await saveWorkspaceLedger(ledger);
+      return blockedRun;
+    }
+
+    this.inFlightOccurrences.add(occurrenceKey);
+    const run = createRunningRun(task, scheduledFor);
+    const executionRequest = this.executionAdapter.createRequest(task, profile, scheduledFor);
+    run.retryOfRunId = options?.retryOfRunId ?? null;
+    run.executionRequest = executionRequest;
+
+    if (!options?.manual) {
+      task.nextRunAt = computeTaskNextRun(task, scheduledFor);
+    }
+    ledger.runs = trimRuns([run, ...ledger.runs]);
+    task.lastRunStatus = "running";
+    await saveWorkspaceLedger(ledger);
+
+    try {
+      const result = await this.executionAdapter.execute(task, profile, scheduledFor, executionRequest);
+      run.status = result.status;
+      run.finishedAt = nowIso();
+      run.outcomeSummary = result.outcomeSummary;
+      run.failureReason = result.failureReason;
+      run.executionRequest = result.executionRequest;
+      task.lastRunStatus = result.status;
+      await saveWorkspaceLedger(ledger);
+      return run;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Local command execution failed.";
+      run.status = "failed";
+      run.finishedAt = nowIso();
+      run.outcomeSummary = message;
+      run.failureReason = message;
+      task.lastRunStatus = "failed";
+      await saveWorkspaceLedger(ledger);
+      return run;
+    } finally {
+      this.inFlightOccurrences.delete(occurrenceKey);
     }
   }
 }

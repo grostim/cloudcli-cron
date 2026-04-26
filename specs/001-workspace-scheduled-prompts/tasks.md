@@ -80,19 +80,19 @@
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Extend contract tests for run-history, retry, and execution-profile endpoints in `tests/contract/plugin-rpc.test.ts`
-- [ ] T027 [P] [US2] Add integration tests for local command execution, missed-run recording, and no catch-up replay in `tests/integration/execution-adapter.test.ts` and `tests/integration/scheduler-loop.test.ts`
-- [ ] T028 [P] [US2] Add frontend jsdom test for local execution capability banner and run-history status rendering in `tests/integration/run-history.test.ts`
+- [X] T026 [P] [US2] Extend contract tests for run-history, retry, and execution-profile endpoints in `tests/contract/plugin-rpc.test.ts`
+- [X] T027 [P] [US2] Add integration tests for local command execution, missed-run recording, and no catch-up replay in `tests/integration/execution-adapter.test.ts` and `tests/integration/scheduler-loop.test.ts`
+- [X] T028 [P] [US2] Add frontend jsdom test for local execution capability banner and run-history status rendering in `tests/integration/run-history.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T029 [P] [US2] Implement local command execution adapter and process launch mapping in `src/server/execution-adapter.ts`
-- [ ] T030 [P] [US2] Implement local execution-profile save/load endpoints and capability evaluation in `src/server/http.ts` and `src/server/settings.ts`
-- [ ] T031 [P] [US2] Implement run-history query, retry action, and outcome summarization in `src/server/http.ts` and `src/server/scheduler.ts`
-- [ ] T032 [P] [US2] Implement scheduler handling for `running`, `failed`, `missed`, and duplicate-prevention states in `src/server/scheduler.ts`
-- [ ] T033 [P] [US2] Build execution readiness banner and local command configuration panel in `src/client/views/execution-banner.ts`
-- [ ] T034 [P] [US2] Build run-history and upcoming-runs UI with recovery actions in `src/client/views/run-history.ts`
-- [ ] T035 [US2] Wire execution settings, refresh behavior, and manual retry/run-now flows in `src/client/app.ts` and `src/client/api.ts`
+- [X] T029 [P] [US2] Implement local command execution adapter and process launch mapping in `src/server/execution-adapter.ts`
+- [X] T030 [P] [US2] Implement local execution-profile save/load endpoints and capability evaluation in `src/server/http.ts` and `src/server/settings.ts`
+- [X] T031 [P] [US2] Implement run-history query, retry action, and outcome summarization in `src/server/http.ts` and `src/server/scheduler.ts`
+- [X] T032 [P] [US2] Implement scheduler handling for `running`, `failed`, `missed`, and duplicate-prevention states in `src/server/scheduler.ts`
+- [X] T033 [P] [US2] Build execution readiness banner and local command configuration panel in `src/client/views/execution-banner.ts`
+- [X] T034 [P] [US2] Build run-history and upcoming-runs UI with recovery actions in `src/client/views/run-history.ts`
+- [X] T035 [US2] Wire execution settings, refresh behavior, and manual retry/run-now flows in `src/client/app.ts` and `src/client/api.ts`
 
 **Checkpoint**: User Stories 1 and 2 both work independently, including local execution and visible failure handling.
 

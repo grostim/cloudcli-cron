@@ -31,7 +31,8 @@ describe("schedule list", () => {
       onDelete: vi.fn(),
       onPause: vi.fn(),
       onResume: vi.fn(),
-      onDuplicate: vi.fn()
+      onDuplicate: vi.fn(),
+      onRunNow: vi.fn()
     }, task.id);
 
     const item = section.querySelector('li[data-highlighted="true"]');

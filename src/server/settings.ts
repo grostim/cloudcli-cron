@@ -6,14 +6,16 @@ export function createExecutionProfile(input: {
   args: string[];
   timeoutMs?: number;
 }): ExecutionProfile {
+  const command = input.command.trim();
+  const args = input.args.map((entry) => entry.trim()).filter(Boolean);
   return {
     workspaceKey: input.workspaceKey,
-    command: input.command.trim(),
-    args: input.args.map((entry) => entry.trim()),
+    command,
+    args,
     timeoutMs: input.timeoutMs ?? 300000,
     mode: "local_command",
-    lastValidatedAt: null,
-    validationStatus: "needs_config"
+    lastValidatedAt: new Date().toISOString(),
+    validationStatus: command ? "ready" : "invalid"
   };
 }
 
@@ -32,7 +34,7 @@ export function resolveExecutionCapability(profile: ExecutionProfile | null): Ex
     };
   }
 
-  if (!profile.command || !profile.args.length) {
+  if (!profile.command) {
     return {
       status: "invalid",
       message: "Local execution settings are incomplete."

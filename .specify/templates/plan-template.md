@@ -31,7 +31,16 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- Code Quality: Does the plan keep the change small, readable, typed, lintable, and free of dead
+  code?
+- Test-First Verification: Does each behavior change, bug fix, and contract change have a
+  deterministic test strategy or documented exception?
+- CloudCLI UX Consistency: Do user-facing states, labels, spacing, and responsive behavior follow
+  existing CloudCLI conventions?
+- Performance Budgets: Are startup time, scan time, RPC latency, and resource constraints stated
+  and measurable?
+- Simplicity and Dependency Discipline: Are new dependencies and abstractions justified by clear
+  plugin value?
 
 ## Project Structure
 

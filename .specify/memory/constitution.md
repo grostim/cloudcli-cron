@@ -1,50 +1,98 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+- Version change: initial adoption -> 1.0.0
+- Modified principles: template placeholder principles -> Code Quality Is a Release Gate; Tests
+  Prove Behavior Before Merge; CloudCLI UX Must Stay Consistent; Performance Budgets Are Explicit;
+  Plugin Boundaries Must Be Safe and Observable
+- Added sections: Quality, Testing, and UX Standards; Delivery, Review, and Release Gates
+- Removed sections: none
+- Templates requiring updates: ✅ .specify/templates/plan-template.md; ✅ .specify/templates/spec-template.md;
+  ✅ .specify/templates/tasks-template.md
+- Deferred items: none
+-->
+# CloudCLI Cron Constitution
+<!-- CloudCLI Cron is a CloudCLI plugin/extension built from the cloudcli-plugin-starter template. -->
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Code Quality Is a Release Gate
+Production code MUST be small, typed, and readable. Every change MUST keep responsibilities narrow,
+prefer explicit data flow over hidden side effects, and remove obvious duplication instead of adding
+new layers of indirection. Public APIs, RPC handlers, and UI components MUST use clear names,
+predictable inputs and outputs, and safe error paths. Dead code, speculative abstractions, and
+unrelated refactors MUST NOT be introduced in the same change unless they materially reduce risk
+for the active work.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Tests Prove Behavior Before Merge
+Behavioral changes MUST be covered by automated tests before merge. Bug fixes MUST include a
+regression test that fails against the bug and passes after the fix. Logic that runs in the browser,
+in the Node server, or across the RPC boundary MUST be tested at the narrowest useful level, and
+changes that affect the plugin contract MUST include integration coverage. Tests MUST assert
+observable behavior, not implementation trivia, and a feature is not complete until the relevant
+tests pass in CI.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. CloudCLI UX Must Stay Consistent
+User-facing surfaces MUST match CloudCLI's established interaction patterns, language, spacing,
+and state handling. Loading, empty, success, and error states MUST be explicit, and the same action
+MUST use the same labels and affordances across the plugin. Any new control, chart, table, or status
+indicator MUST justify why the existing CloudCLI pattern is insufficient. The plugin UI MUST remain
+usable with keyboard navigation, readable at narrow widths, and consistent across light and dark
+presentation modes when the host provides them.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Performance Budgets Are Explicit
+Every feature with user-visible rendering, file scanning, or RPC-heavy work MUST define measurable
+performance budgets in the plan before implementation begins. The implementation MUST avoid full
+rescans on every interaction, unnecessary round trips, and synchronous work that blocks the plugin
+host or browser UI. Expensive computation MUST be cached, incremental, deferred, or moved to the
+server subprocess where appropriate. Regressions in startup time, refresh latency, or memory usage
+MUST be treated as defects.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Plugin Boundaries Must Be Safe and Observable
+The plugin MUST respect the CloudCLI host contract: frontend code owns rendering, server code owns
+privileged or heavy work, and communication between them MUST be explicit and typed. Failures MUST
+degrade gracefully with actionable messages, and logs MUST be sufficient to diagnose integration
+issues without exposing secrets or overwhelming the user. New dependencies MUST be justified by a
+concrete plugin need and MUST not expand the surface area of failure without a corresponding test
+and rollback path.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Quality, Testing, and UX Standards
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+- Any change that alters behavior, UI, manifest data, or RPC contracts MUST include automated test
+  coverage or a documented exception in the plan.
+- Code touched by a change MUST pass the relevant formatter, linter, type checker, and test suites
+  before merge.
+- User-facing work MUST specify the loading, empty, success, error, and recovery states that the
+  implementation will present.
+- UI changes MUST preserve CloudCLI terminology, spacing, hierarchy, and interaction patterns unless
+  the plan explicitly records a UX exception and rationale.
+- Performance-sensitive work MUST document the measured budget, the measurement method, and the
+  fallback behavior if the budget is missed.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Delivery, Review, and Release Gates
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+- A change is not complete until the implementation, tests, and validation evidence all agree with
+  the spec and plan.
+- Plans MUST map each user-visible behavior change to one or more automated tests.
+- Reviewers MUST block merge if a change omits regression coverage, breaks UX consistency, or leaves
+  a performance-sensitive path unmeasured.
+- Manifest changes, RPC contract changes, and storage or state-shape changes MUST include a backward
+  compatibility note or a migration plan.
+- Documentation updates are required whenever setup, usage, permissions, or observable behavior
+  changes for plugin users.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution overrides conflicting conventions, ad hoc practices, and template defaults.
+Amendments require a pull request that explains the motivation, the version bump, the impact on
+existing work, and any template updates needed to keep the workflow consistent.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+Versioning follows semantic versioning:
+
+- MAJOR for principle removals, redefinitions, or governance changes that break compatibility.
+- MINOR for new principles, materially expanded guidance, or new mandatory workflow sections.
+- PATCH for wording clarifications, typo fixes, or non-semantic refinements.
+
+Compliance is mandatory for specs, plans, tasks, checklists, reviews, and implementation work. Any
+exception must be documented in the relevant artifact and approved before merge.
+
+**Version**: 1.0.0 | **Ratified**: 2026-04-26 | **Last Amended**: 2026-04-26

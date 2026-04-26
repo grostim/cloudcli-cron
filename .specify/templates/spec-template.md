@@ -89,6 +89,10 @@
 - **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
+- **FR-006**: User-facing behavior MUST preserve loading, empty, success, error, and recovery states
+  that are consistent with existing CloudCLI conventions
+- **FR-007**: User-facing behavior MUST define any response-time, scan-time, RPC-latency, or
+  resource budget that could be impacted by the feature
 
 *Example of marking unclear requirements:*
 
@@ -113,6 +117,8 @@
 - **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
 - **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
 - **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+- **SC-005**: Include at least one measurable UX outcome and one measurable performance outcome when
+  the feature changes user-facing behavior
 
 ## Assumptions
 

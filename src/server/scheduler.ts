@@ -22,7 +22,7 @@ import {
   validateRecurrenceDefinition
 } from "./recurrence.js";
 import { LocalExecutionAdapter } from "./execution-adapter.js";
-import { createExecutionProfile, resolveExecutionCapability } from "./settings.js";
+import { createExecutionProfile, normalizeExecutionProfile, resolveExecutionCapability } from "./settings.js";
 import { listWorkspaceLedgers, loadWorkspaceLedger, saveWorkspaceLedger } from "./storage.js";
 
 function nowIso(): string {
@@ -243,6 +243,11 @@ export class SchedulerService {
   async refreshWorkspaceLedger(workspacePath: string): Promise<WorkspaceLedger> {
     const ledger = await loadWorkspaceLedger(workspacePath);
     let changed = false;
+    const normalizedProfile = normalizeExecutionProfile(ledger.executionProfile);
+    if (JSON.stringify(normalizedProfile) !== JSON.stringify(ledger.executionProfile)) {
+      ledger.executionProfile = normalizedProfile;
+      changed = true;
+    }
     for (const task of ledger.tasks) {
       const nextRunAt = computeTaskNextRun(task, nowIso());
       if (task.nextRunAt !== nextRunAt || task.recurrenceSummary !== formatRecurrenceSummary(task.recurrence)) {

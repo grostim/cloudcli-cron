@@ -28,7 +28,7 @@ describe("execution banner", () => {
 
     expect(onSave).toHaveBeenCalledWith({
       command: "codex",
-      args: ["exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "--ask-for-approval", "never"],
+      args: ["-a", "never", "exec", "--skip-git-repo-check", "--sandbox", "workspace-write"],
       timeoutMs: 300000
     });
   });

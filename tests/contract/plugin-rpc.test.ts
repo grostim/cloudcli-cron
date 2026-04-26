@@ -5,6 +5,7 @@ import {
   parseUpdateTaskRequest,
   parseWorkspaceScopedRequest
 } from "../../src/shared/contracts.js";
+import { normalizeExecutionProfile } from "../../src/server/settings.js";
 
 describe("plugin RPC contracts", () => {
   it("parses workspace-scoped payloads", () => {
@@ -69,5 +70,19 @@ describe("plugin RPC contracts", () => {
 
     expect(parsed.command).toContain("run-scheduled-prompt");
     expect(parsed.args).toEqual([]);
+  });
+
+  it("normalizes the legacy codex preset arguments", () => {
+    const profile = normalizeExecutionProfile({
+      workspaceKey: "workspace-1",
+      command: "codex",
+      args: ["exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "--ask-for-approval", "never"],
+      timeoutMs: 300000,
+      mode: "local_command",
+      lastValidatedAt: null,
+      validationStatus: "needs_config"
+    });
+
+    expect(profile?.args).toEqual(["-a", "never", "exec", "--skip-git-repo-check", "--sandbox", "workspace-write"]);
   });
 });

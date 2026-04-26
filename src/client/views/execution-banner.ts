@@ -20,12 +20,12 @@ const EXECUTION_PRESETS: ExecutionPreset[] = [
     label: "Codex",
     command: "codex",
     args: [
+      "-a",
+      "never",
       "exec",
       "--skip-git-repo-check",
       "--sandbox",
-      "workspace-write",
-      "--ask-for-approval",
-      "never"
+      "workspace-write"
     ],
     timeoutMs: 300000,
     note: "Uses stdin for the scheduled prompt. Suitable for fully local Codex automation."

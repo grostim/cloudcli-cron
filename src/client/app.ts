@@ -348,7 +348,7 @@ export class WorkspaceScheduledPromptsApp {
     this.container.innerHTML = "";
   }
 
-  async loadFromContext(workspacePath: string | null): Promise<void> {
+  async loadFromContext(workspacePath: string | null): Promise<boolean> {
     if (!workspacePath) {
       this.state.replace({
         workspacePath: null,
@@ -362,7 +362,7 @@ export class WorkspaceScheduledPromptsApp {
         editingTaskId: null,
         highlightedTaskId: null
       });
-      return;
+      return true;
     }
 
     this.state.patch({
@@ -385,6 +385,7 @@ export class WorkspaceScheduledPromptsApp {
         successMessage: null,
         highlightedTaskId: null
       });
+      return true;
     } catch (error) {
       this.state.patch({
         busy: false,
@@ -392,12 +393,29 @@ export class WorkspaceScheduledPromptsApp {
         executionProfile: null,
         successMessage: null
       });
+      return false;
     }
   }
 
   private currentEditingTask(): WorkspaceTask | null {
     const { editingTaskId, tasks } = this.state.snapshot;
     return tasks.find((task) => task.id === editingTaskId) ?? null;
+  }
+
+  private async reconcileWorkspaceState(
+    workspacePath: string,
+    successMessage: string,
+    highlightedTaskId: string | null
+  ): Promise<void> {
+    const refreshed = await this.loadFromContext(workspacePath);
+    if (!refreshed) {
+      return;
+    }
+    this.state.patch({
+      successMessage,
+      highlightedTaskId,
+      error: null
+    });
   }
 
   private async handleCreateTask(request: Omit<CreateTaskRequest, "workspacePath">): Promise<void> {
@@ -456,7 +474,7 @@ export class WorkspaceScheduledPromptsApp {
     heading.className = "wsp-header";
     heading.innerHTML = `
       <div>
-        <h1>Workspace Scheduled Prompts</h1>
+        <h1>Scheduled Prompt</h1>
         <p>Create, review, and monitor scheduled prompts for the active workspace.</p>
       </div>
       <div class="wsp-workspace-chip">
@@ -539,12 +557,10 @@ export class WorkspaceScheduledPromptsApp {
             return;
           }
           void this.rpc.deleteTask(taskId, workspacePath).then(() => {
-            this.state.removeTask(taskId);
-            this.state.patch({
-              error: null,
-              successMessage: "Schedule deleted.",
-              highlightedTaskId: null
-            });
+            if (this.state.snapshot.editingTaskId === taskId) {
+              this.state.patch({ editingTaskId: null });
+            }
+            return this.reconcileWorkspaceState(workspacePath, "Schedule deleted.", null);
           }).catch((error) => {
             this.state.patch({
               error: error instanceof Error ? error.message : "Failed to delete task.",
@@ -558,12 +574,7 @@ export class WorkspaceScheduledPromptsApp {
             return;
           }
           void this.rpc.pauseTask(taskId, workspacePath).then((response) => {
-            this.state.upsertTask(response.task);
-            this.state.patch({
-              error: null,
-              successMessage: `Schedule "${response.task.name}" paused.`,
-              highlightedTaskId: response.task.id
-            });
+            return this.reconcileWorkspaceState(workspacePath, `Schedule "${response.task.name}" paused.`, response.task.id);
           }).catch((error) => {
             this.state.patch({
               error: error instanceof Error ? error.message : "Failed to pause task.",
@@ -577,12 +588,7 @@ export class WorkspaceScheduledPromptsApp {
             return;
           }
           void this.rpc.resumeTask(taskId, workspacePath).then((response) => {
-            this.state.upsertTask(response.task);
-            this.state.patch({
-              error: null,
-              successMessage: `Schedule "${response.task.name}" resumed.`,
-              highlightedTaskId: response.task.id
-            });
+            return this.reconcileWorkspaceState(workspacePath, `Schedule "${response.task.name}" resumed.`, response.task.id);
           }).catch((error) => {
             this.state.patch({
               error: error instanceof Error ? error.message : "Failed to resume task.",
@@ -596,12 +602,7 @@ export class WorkspaceScheduledPromptsApp {
             return;
           }
           void this.rpc.duplicateTask(taskId, workspacePath).then((response) => {
-            this.state.upsertTask(response.task);
-            this.state.patch({
-              error: null,
-              successMessage: `Schedule "${response.task.name}" duplicated.`,
-              highlightedTaskId: response.task.id
-            });
+            return this.reconcileWorkspaceState(workspacePath, `Schedule "${response.task.name}" duplicated.`, response.task.id);
           }).catch((error) => {
             this.state.patch({
               error: error instanceof Error ? error.message : "Failed to duplicate task.",
@@ -619,12 +620,7 @@ export class WorkspaceScheduledPromptsApp {
               runs: [response.run, ...this.state.snapshot.runs.filter((run) => run.id !== response.run.id)],
               error: null
             });
-            void this.loadFromContext(workspacePath).then(() => {
-              this.state.patch({
-                successMessage: "Manual run finished.",
-                highlightedTaskId: taskId
-              });
-            });
+            return this.reconcileWorkspaceState(workspacePath, "Manual run finished.", taskId);
           }).catch((error) => {
             this.state.patch({
               error: error instanceof Error ? error.message : "Failed to start manual run.",
@@ -645,12 +641,7 @@ export class WorkspaceScheduledPromptsApp {
             runs: [response.run, ...this.state.snapshot.runs.filter((run) => run.id !== response.run.id)],
             error: null
           });
-          void this.loadFromContext(workspacePath).then(() => {
-            this.state.patch({
-              successMessage: "Retry finished.",
-              highlightedTaskId: null
-            });
-          });
+          return this.reconcileWorkspaceState(workspacePath, "Retry finished.", null);
         }).catch((error) => {
           this.state.patch({
             error: error instanceof Error ? error.message : "Failed to retry run.",

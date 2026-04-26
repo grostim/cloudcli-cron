@@ -61,4 +61,28 @@ describe("run history", () => {
     section.querySelector("button")?.click();
     expect(onRetry).toHaveBeenCalledWith("run-1");
   });
+
+  it("renders run output as text instead of executable markup", () => {
+    const section = renderRunHistory([
+      {
+        id: "run-2",
+        occurrenceKey: "task-1:2026-04-27T07:00:00.000Z",
+        taskId: "task-1",
+        workspaceKey: "workspace-1",
+        scheduledFor: "2026-04-27T07:00:00.000Z",
+        startedAt: "2026-04-27T07:00:01.000Z",
+        finishedAt: "2026-04-27T07:00:02.000Z",
+        status: "failed",
+        outcomeSummary: "<img src=x onerror=alert(1)>",
+        failureReason: "<script>alert(1)</script>",
+        retryOfRunId: null,
+        executionRequest: null
+      }
+    ], { onRetry: vi.fn() });
+
+    expect(section.querySelector("img")).toBeNull();
+    expect(section.querySelector("script")).toBeNull();
+    expect(section.textContent).toContain("<img src=x onerror=alert(1)>");
+    expect(section.textContent).toContain("<script>alert(1)</script>");
+  });
 });

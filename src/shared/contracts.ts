@@ -71,7 +71,11 @@ function readOptionalString(record: UnknownRecord, key: string): string | undefi
   if (typeof value !== "string") {
     throw new Error(`${key} must be a string`);
   }
-  return value.trim();
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error(`${key} must be a non-empty string when provided`);
+  }
+  return trimmed;
 }
 
 export function parseWorkspaceScopedRequest(body: unknown): WorkspaceScopedRequest {

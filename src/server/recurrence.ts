@@ -65,6 +65,11 @@ export function validateRecurrenceDefinition(recurrence: RecurrenceDefinition): 
       if (!recurrence.weekdays.length) {
         throw new Error("weekday schedules require at least one weekday");
       }
+      for (const weekday of recurrence.weekdays) {
+        if (!(weekday in WEEKDAY_TO_INDEX)) {
+          throw new Error(`Invalid weekday: ${weekday}`);
+        }
+      }
       return;
     case "weekly":
       parseLocalTime(recurrence.localTime);

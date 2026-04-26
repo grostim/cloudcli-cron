@@ -140,4 +140,94 @@ describe("scheduler service integration", () => {
     expect(updated.runs[0]?.status).toBe("missed");
     expect(updated.runs[0]?.outcomeSummary).toContain("Configure a local execution command");
   });
+
+  it("does not execute paused tasks until they are resumed", async () => {
+    const scheduler = new SchedulerService();
+    const task = await scheduler.createTask({
+      workspacePath,
+      name: "Morning summary",
+      prompt: "Summarize the workspace.",
+      recurrence: {
+        scheduleType: "daily",
+        timezone: "Europe/Paris",
+        localTime: "09:00"
+      }
+    });
+
+    await scheduler.pauseTask(task.id, workspacePath);
+
+    const pausedLedger = await loadWorkspaceLedger(workspacePath);
+    pausedLedger.tasks[0]!.nextRunAt = new Date(Date.now() - 60_000).toISOString();
+    await saveWorkspaceLedger(pausedLedger);
+
+    await scheduler.tickWithoutDispatcher();
+
+    const stillPaused = await loadWorkspaceLedger(workspacePath);
+    expect(stillPaused.runs).toHaveLength(0);
+    expect(stillPaused.tasks[0]?.enabled).toBe(false);
+
+    const resumed = await scheduler.resumeTask(task.id, workspacePath);
+    expect(resumed.enabled).toBe(true);
+
+    const resumedLedger = await loadWorkspaceLedger(workspacePath);
+    resumedLedger.tasks[0]!.nextRunAt = new Date(Date.now() - 60_000).toISOString();
+    await saveWorkspaceLedger(resumedLedger);
+
+    await scheduler.tickWithoutDispatcher();
+
+    const afterResume = await loadWorkspaceLedger(workspacePath);
+    expect(afterResume.runs[0]?.status).toBe("missed");
+  });
+
+  it("deletes tasks so they are removed from the active list and never execute again", async () => {
+    const scheduler = new SchedulerService();
+    const task = await scheduler.createTask({
+      workspacePath,
+      name: "Weekly review",
+      prompt: "Review weekly changes.",
+      recurrence: {
+        scheduleType: "weekly",
+        timezone: "Europe/Paris",
+        localTime: "09:00",
+        dayOfWeek: "monday"
+      }
+    });
+
+    await scheduler.deleteTask(task.id, workspacePath);
+
+    const deletedLedger = await loadWorkspaceLedger(workspacePath);
+    expect(deletedLedger.tasks).toHaveLength(0);
+
+    await scheduler.tickWithoutDispatcher();
+
+    const afterTick = await loadWorkspaceLedger(workspacePath);
+    expect(afterTick.tasks).toHaveLength(0);
+    expect(afterTick.runs).toHaveLength(0);
+  });
+
+  it("duplicates tasks and supports a manual run-now without waiting for the next occurrence", async () => {
+    const scheduler = new SchedulerService();
+    const task = await scheduler.createTask({
+      workspacePath,
+      name: "Morning summary",
+      prompt: "Summarize the workspace.",
+      recurrence: {
+        scheduleType: "daily",
+        timezone: "Europe/Paris",
+        localTime: "09:00"
+      }
+    });
+
+    const duplicate = await scheduler.duplicateTask(task.id, workspacePath);
+    expect(duplicate.id).not.toBe(task.id);
+    expect(duplicate.name).toContain("(Copy)");
+
+    const manualRun = await scheduler.createManualRun(task.id, workspacePath);
+    expect(["failed", "succeeded"]).toContain(manualRun.status);
+
+    const ledger = await loadWorkspaceLedger(workspacePath);
+    expect(ledger.tasks).toHaveLength(2);
+    expect(ledger.runs).toHaveLength(1);
+    expect(ledger.runs[0]?.taskId).toBe(task.id);
+  });
 });

@@ -14,6 +14,18 @@ describe("plugin RPC contracts", () => {
     });
   });
 
+  it("parses workspace-scoped lifecycle action payloads", () => {
+    for (const payload of [
+      { workspacePath: "/tmp/project" }, // pause
+      { workspacePath: "/tmp/project" }, // resume
+      { workspacePath: "/tmp/project" }, // duplicate
+      { workspacePath: "/tmp/project" }, // run-now
+      { workspacePath: "/tmp/project" } // retry
+    ]) {
+      expect(parseWorkspaceScopedRequest(payload)).toEqual({ workspacePath: "/tmp/project" });
+    }
+  });
+
   it("parses create-task payloads", () => {
     const parsed = parseCreateTaskRequest({
       workspacePath: "/tmp/project",
@@ -47,6 +59,34 @@ describe("plugin RPC contracts", () => {
         enabled: "yes"
       })
     ).toThrow("enabled must be a boolean");
+  });
+
+  it("rejects whitespace-only update strings", () => {
+    expect(() =>
+      parseUpdateTaskRequest({
+        workspacePath: "/tmp/project",
+        name: "   "
+      })
+    ).toThrow("name must be a non-empty string when provided");
+
+    expect(() =>
+      parseUpdateTaskRequest({
+        workspacePath: "/tmp/project",
+        prompt: "   "
+      })
+    ).toThrow("prompt must be a non-empty string when provided");
+  });
+
+  it("parses enabled state updates for pause and resume transitions", () => {
+    expect(parseUpdateTaskRequest({
+      workspacePath: "/tmp/project",
+      enabled: false
+    }).enabled).toBe(false);
+
+    expect(parseUpdateTaskRequest({
+      workspacePath: "/tmp/project",
+      enabled: true
+    }).enabled).toBe(true);
   });
 
   it("parses execution profile payloads", () => {

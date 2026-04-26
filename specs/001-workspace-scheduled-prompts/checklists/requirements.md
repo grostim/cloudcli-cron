@@ -33,3 +33,4 @@
 
 - Validation completed against the initial draft. No clarification markers were required because the main open points were bounded through explicit assumptions.
 - The scope intentionally covers workspace-scoped scheduled prompts, lifecycle controls, and execution observability; external notifications and cross-workspace orchestration remain out of scope for v1.
+- The spec now fixes the v1 recurrence envelope and the `missed` run policy to avoid catch-up ambiguity during planning.

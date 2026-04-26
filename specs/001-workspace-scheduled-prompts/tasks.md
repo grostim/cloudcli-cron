@@ -126,11 +126,11 @@
 
 **Purpose**: Finish documentation, performance validation, and release hardening that affect multiple stories.
 
-- [ ] T044 [P] Add README usage, installation, and local execution behavior notes in `README.md`
-- [ ] T045 [P] Add regression tests for monthly overflow policy and multi-missed-run summaries in `tests/unit/recurrence.test.ts` and `tests/integration/scheduler-loop.test.ts`
-- [ ] T046 [P] Add lightweight performance benchmarks or fixtures for 100 tasks and 500 runs in `tests/integration/performance.test.ts`
-- [ ] T047 Validate quickstart flows and record any fixes in `specs/001-workspace-scheduled-prompts/quickstart.md`
-- [ ] T048 Run full test suite, fix residual issues, and confirm build outputs in `package.json` scripts and `dist/`
+- [X] T044 [P] Add README usage, installation, and local execution behavior notes in `README.md`
+- [X] T045 [P] Add regression tests for monthly overflow policy and multi-missed-run summaries in `tests/unit/recurrence.test.ts` and `tests/integration/scheduler-loop.test.ts`
+- [X] T046 [P] Add lightweight performance benchmarks or fixtures for 100 tasks and 500 runs in `tests/integration/performance.test.ts`
+- [X] T047 Validate quickstart flows and record any fixes in `specs/001-workspace-scheduled-prompts/quickstart.md`
+- [X] T048 Run full test suite, fix residual issues, and confirm build outputs in `package.json` scripts and `dist/`
 
 ---
 

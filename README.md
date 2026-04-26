@@ -143,6 +143,12 @@ Supported argument templates:
 - `{{taskId}}`
 - `{{scheduledFor}}`
 
+## Execution Timing
+
+- Automatic runs are attempted only for occurrences that are still within the scheduler grace window.
+- If the plugin or host was unavailable long enough for an occurrence to become stale, that occurrence is recorded as `missed`.
+- Recurring schedules record each missed slot in history, then continue from the next future occurrence without catch-up replay.
+
 ## Storage
 
 Workspace ledgers are stored locally under:

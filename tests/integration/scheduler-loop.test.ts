@@ -1,8 +1,10 @@
 import * as os from "node:os";
 import path from "node:path";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { DateTime } from "luxon";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SchedulerService } from "../../src/server/scheduler.js";
+import { nextOccurrenceForRecurrence } from "../../src/server/recurrence.js";
 import { loadWorkspaceLedger, saveWorkspaceLedger } from "../../src/server/storage.js";
 
 describe("scheduler service integration", () => {
@@ -139,6 +141,50 @@ describe("scheduler service integration", () => {
     const updated = await loadWorkspaceLedger(workspacePath);
     expect(updated.runs[0]?.status).toBe("missed");
     expect(updated.runs[0]?.outcomeSummary).toContain("Configure a local execution command");
+  });
+
+  it("records all missed recurring occurrences in one tick and resumes from the next future slot", async () => {
+    const scheduler = new SchedulerService();
+    const recurrence = {
+      scheduleType: "daily" as const,
+      timezone: "Europe/Paris",
+      localTime: "09:00"
+    };
+
+    await scheduler.createTask({
+      workspacePath,
+      name: "Morning summary",
+      prompt: "Summarize the workspace.",
+      recurrence
+    });
+
+    const ledger = await loadWorkspaceLedger(workspacePath);
+    const firstMissed = DateTime.now()
+      .setZone("Europe/Paris")
+      .minus({ days: 3 })
+      .set({ hour: 9, minute: 0, second: 0, millisecond: 0 });
+    const expectedOccurrences: string[] = [];
+    let cursor = firstMissed;
+    const now = DateTime.now().toUTC();
+
+    while (cursor.toUTC() <= now) {
+      expectedOccurrences.push(cursor.toUTC().toISO()!);
+      cursor = cursor.plus({ days: 1 });
+    }
+
+    ledger.tasks[0]!.nextRunAt = expectedOccurrences[0]!;
+    await saveWorkspaceLedger(ledger);
+
+    await scheduler.tickWithoutDispatcher();
+
+    const updated = await loadWorkspaceLedger(workspacePath);
+    expect(updated.runs).toHaveLength(expectedOccurrences.length);
+    expect(updated.runs.every((run) => run.status === "missed")).toBe(true);
+    expect(updated.runs.map((run) => run.scheduledFor).sort()).toEqual([...expectedOccurrences].sort());
+    expect(updated.runs.every((run) => run.outcomeSummary.includes("Configure a local execution command"))).toBe(true);
+    expect(updated.tasks[0]?.nextRunAt).toBe(
+      nextOccurrenceForRecurrence(recurrence, expectedOccurrences.at(-1))
+    );
   });
 
   it("does not execute paused tasks until they are resumed", async () => {

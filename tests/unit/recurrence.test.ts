@@ -30,6 +30,36 @@ describe("recurrence", () => {
     expect(next?.startsWith("2026-04-30") || next?.startsWith("2026-05-31")).toBe(true);
   });
 
+  it("uses the last valid day for February when the monthly schedule targets the 31st", () => {
+    const next = nextOccurrenceForRecurrence(
+      {
+        scheduleType: "monthly",
+        timezone: "Europe/Paris",
+        localTime: "09:00",
+        dayOfMonth: 31,
+        monthlyOverflowPolicy: "clamp_to_last_day"
+      },
+      "2026-02-01T00:00:00.000Z"
+    );
+
+    expect(next?.startsWith("2026-02-28T08:00")).toBe(true);
+  });
+
+  it("returns to the configured day when the following month supports it", () => {
+    const next = nextOccurrenceForRecurrence(
+      {
+        scheduleType: "monthly",
+        timezone: "Europe/Paris",
+        localTime: "09:00",
+        dayOfMonth: 31,
+        monthlyOverflowPolicy: "clamp_to_last_day"
+      },
+      "2026-02-28T08:00:00.000Z"
+    );
+
+    expect(next?.startsWith("2026-03-31T07:00")).toBe(true);
+  });
+
   it("renders human-readable summaries", () => {
     const summary = formatRecurrenceSummary({
       scheduleType: "weekly",

@@ -1,4 +1,4 @@
-# Quickstart: Workspace Scheduled Prompts
+# Quickstart: Scheduled Prompt
 
 ## Prerequisites
 
@@ -32,14 +32,18 @@ npm test
 
 1. Open `Settings > Plugins`.
 2. Install the plugin repository URL.
-3. Enable the plugin tab.
-4. Confirm the plugin loads in both light and dark theme contexts.
+3. Enable `Scheduled Prompt`.
+4. Confirm the plugin tab loads in both light and dark theme contexts.
 
 ## Configure local execution
 
 1. Open the plugin tab in the target workspace.
-2. Configure the local execution command and arguments template.
+2. Pick a preset (`Codex`, `Claude Code`, or `Gemini CLI`) or enter a custom command template.
 3. Save settings and validate that the execution banner reports `ready`.
+4. Confirm the preset note matches the expected prompt transport:
+   - `Codex`: prompt on `stdin`
+   - `Claude Code`: prompt expanded through `{{prompt}}`
+   - `Gemini CLI`: prompt expanded through `{{prompt}}`
 
 ## Validate primary flows
 
@@ -66,7 +70,9 @@ npm test
 1. Disable or invalidate local execution settings before a due occurrence.
 2. Allow the scheduled time to pass.
 3. Reopen the plugin and confirm the run is recorded as `missed`.
-4. Confirm recurring tasks continue from the next future slot rather than replaying missed
+4. If several recurring slots were missed while the plugin was unavailable, confirm each missed
+   occurrence appears in history with its own scheduled timestamp.
+5. Confirm recurring tasks continue from the next future slot rather than replaying missed
    occurrences automatically.
 
 ## Validate unsupported local behavior

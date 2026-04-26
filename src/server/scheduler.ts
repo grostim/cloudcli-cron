@@ -25,6 +25,8 @@ import { LocalExecutionAdapter } from "./execution-adapter.js";
 import { createExecutionProfile, normalizeExecutionProfile, resolveExecutionCapability } from "./settings.js";
 import { listWorkspaceLedgers, loadWorkspaceLedger, saveWorkspaceLedger } from "./storage.js";
 
+const EXECUTION_GRACE_WINDOW_MS = 90_000;
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -77,6 +79,15 @@ function createRunningRun(task: WorkspaceTask, scheduledFor: string): ScheduledR
     retryOfRunId: null,
     executionRequest: null
   };
+}
+
+function isOutsideExecutionGraceWindow(scheduledFor: string, referenceIso: string): boolean {
+  const scheduledAt = Date.parse(scheduledFor);
+  const referenceAt = Date.parse(referenceIso);
+  if (Number.isNaN(scheduledAt) || Number.isNaN(referenceAt)) {
+    return true;
+  }
+  return referenceAt - scheduledAt > EXECUTION_GRACE_WINDOW_MS;
 }
 
 export class SchedulerService {
@@ -265,33 +276,55 @@ export class SchedulerService {
   async tickWithoutDispatcher(): Promise<void> {
     const ledgers = await listWorkspaceLedgers();
     for (const ledger of ledgers) {
+      const tickStartedAt = nowIso();
       let changed = false;
+      const capability = resolveExecutionCapability(ledger.executionProfile ?? null);
       for (const task of ledger.tasks) {
         if (!task.enabled || !task.nextRunAt) {
           continue;
         }
-        if (task.nextRunAt > nowIso()) {
-          continue;
-        }
 
-        const occurrenceKey = occurrenceKeyForTask(task.id, task.nextRunAt);
-        const alreadyTracked =
-          this.inFlightOccurrences.has(occurrenceKey) ||
-          ledger.runs.some((run) => run.occurrenceKey === occurrenceKey);
-        if (!alreadyTracked) {
-          await this.executeTask(ledger, task, task.nextRunAt);
+        while (task.nextRunAt && task.nextRunAt <= tickStartedAt) {
+          const scheduledFor = task.nextRunAt;
+          const occurrenceKey = occurrenceKeyForTask(task.id, scheduledFor);
+          const alreadyTracked =
+            this.inFlightOccurrences.has(occurrenceKey) ||
+            ledger.runs.some((run) => run.occurrenceKey === occurrenceKey);
+
+          if (alreadyTracked) {
+            task.nextRunAt = computeTaskNextRun(task, scheduledFor);
+            changed = true;
+            continue;
+          }
+
+          if (capability.status !== "ready" || isOutsideExecutionGraceWindow(scheduledFor, tickStartedAt)) {
+            const missedReason =
+              capability.status !== "ready"
+                ? capability.message
+                : "Automatic execution was unavailable at the scheduled time.";
+            this.recordMissedRun(ledger, task, scheduledFor, missedReason);
+            changed = true;
+            continue;
+          }
+
+          await this.executeTask(ledger, task, scheduledFor);
           changed = false;
-          continue;
+          break;
         }
-
-        task.nextRunAt = computeTaskNextRun(task, task.nextRunAt);
-        changed = true;
       }
 
       if (changed) {
         await saveWorkspaceLedger(ledger);
       }
     }
+  }
+
+  private recordMissedRun(ledger: WorkspaceLedger, task: WorkspaceTask, scheduledFor: string, reason: string): void {
+    const missedRun = createRun(task, scheduledFor, "missed", reason);
+    missedRun.failureReason = reason;
+    ledger.runs = trimRuns([missedRun, ...ledger.runs]);
+    task.lastRunStatus = "missed";
+    task.nextRunAt = computeTaskNextRun(task, scheduledFor);
   }
 
   private async executeTask(

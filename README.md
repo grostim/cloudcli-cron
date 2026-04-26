@@ -2,6 +2,10 @@
 
 CloudCLI / ClaudeCodeUI plugin to create workspace-scoped scheduled prompts and execute them through a local CLI such as Codex, Claude Code, or Gemini CLI.
 
+## Preview
+
+![Scheduled Prompt preview](./assets/release-preview.svg)
+
 ## What It Does
 
 - Create one-time schedules

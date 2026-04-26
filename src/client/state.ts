@@ -6,8 +6,10 @@ export interface AppState {
   runs: ScheduledRun[];
   capability: ExecutionCapability;
   error: string | null;
+  successMessage: string | null;
   busy: boolean;
   editingTaskId: string | null;
+  highlightedTaskId: string | null;
 }
 
 export const DEFAULT_CAPABILITY: ExecutionCapability = {
@@ -24,8 +26,10 @@ export class AppStateStore {
     runs: [],
     capability: DEFAULT_CAPABILITY,
     error: null,
+    successMessage: null,
     busy: false,
-    editingTaskId: null
+    editingTaskId: null,
+    highlightedTaskId: null
   };
 
   private readonly listeners = new Set<Listener>();

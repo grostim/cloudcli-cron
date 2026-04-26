@@ -8,7 +8,11 @@ export interface ScheduleListHandlers {
   onDuplicate(taskId: string): void;
 }
 
-export function renderScheduleList(tasks: WorkspaceTask[], handlers: ScheduleListHandlers): HTMLElement {
+export function renderScheduleList(
+  tasks: WorkspaceTask[],
+  handlers: ScheduleListHandlers,
+  highlightedTaskId: string | null = null
+): HTMLElement {
   const section = document.createElement("section");
   section.className = "schedule-list";
   section.innerHTML = "<h2>Schedules</h2>";
@@ -23,11 +27,17 @@ export function renderScheduleList(tasks: WorkspaceTask[], handlers: ScheduleLis
   const list = document.createElement("ul");
   for (const task of tasks) {
     const item = document.createElement("li");
+    if (task.id === highlightedTaskId) {
+      item.setAttribute("data-highlighted", "true");
+      item.style.outline = "2px solid #2f7d32";
+      item.style.outlineOffset = "4px";
+    }
     item.innerHTML = `
       <div>
         <strong>${task.name}</strong>
         <p>${task.recurrenceSummary}</p>
         <p>Next run: ${task.nextRunAt ?? "Not scheduled"}</p>
+        ${task.id === highlightedTaskId ? "<p>Saved just now.</p>" : ""}
       </div>
     `;
 

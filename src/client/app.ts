@@ -37,12 +37,20 @@ export class WorkspaceScheduledPromptsApp {
         capability: DEFAULT_CAPABILITY,
         busy: false,
         error: null,
-        editingTaskId: null
+        successMessage: null,
+        editingTaskId: null,
+        highlightedTaskId: null
       });
       return;
     }
 
-    this.state.patch({ busy: true, workspacePath, error: null });
+    this.state.patch({
+      busy: true,
+      workspacePath,
+      error: null,
+      successMessage: null,
+      highlightedTaskId: null
+    });
     try {
       const payload = await this.rpc.loadWorkspaceState(workspacePath);
       this.state.patch({
@@ -51,12 +59,15 @@ export class WorkspaceScheduledPromptsApp {
         runs: payload.runs,
         capability: payload.capability,
         busy: false,
-        error: null
+        error: null,
+        successMessage: null,
+        highlightedTaskId: null
       });
     } catch (error) {
       this.state.patch({
         busy: false,
-        error: error instanceof Error ? error.message : "Failed to load workspace state."
+        error: error instanceof Error ? error.message : "Failed to load workspace state.",
+        successMessage: null
       });
     }
   }
@@ -74,7 +85,12 @@ export class WorkspaceScheduledPromptsApp {
 
     const response = await this.rpc.createTask({ ...request, workspacePath });
     this.state.upsertTask(response.task);
-    this.state.patch({ editingTaskId: null, error: null });
+    this.state.patch({
+      editingTaskId: null,
+      error: null,
+      successMessage: `Schedule "${response.task.name}" created.`,
+      highlightedTaskId: response.task.id
+    });
   }
 
   private async handleSaveTask(request: Omit<CreateTaskRequest, "workspacePath">): Promise<void> {
@@ -97,7 +113,12 @@ export class WorkspaceScheduledPromptsApp {
     };
     const response = await this.rpc.updateTask(editingTaskId, update);
     this.state.upsertTask(response.task);
-    this.state.patch({ editingTaskId: null, error: null });
+    this.state.patch({
+      editingTaskId: null,
+      error: null,
+      successMessage: `Schedule "${response.task.name}" updated.`,
+      highlightedTaskId: response.task.id
+    });
   }
 
   private render(): void {
@@ -120,6 +141,14 @@ export class WorkspaceScheduledPromptsApp {
       root.append(error);
     }
 
+    if (snapshot.successMessage) {
+      const success = document.createElement("p");
+      success.textContent = snapshot.successMessage;
+      success.setAttribute("role", "status");
+      success.setAttribute("aria-live", "polite");
+      root.append(success);
+    }
+
     if (snapshot.busy) {
       const loading = document.createElement("p");
       loading.textContent = "Loading workspace state...";
@@ -131,22 +160,40 @@ export class WorkspaceScheduledPromptsApp {
       renderTaskForm(this.currentEditingTask(), {
         onSubmit: (request) => {
           void this.handleSaveTask(request).catch((error) => {
-            this.state.patch({ error: error instanceof Error ? error.message : "Failed to save task." });
+            this.state.patch({
+              error: error instanceof Error ? error.message : "Failed to save task.",
+              successMessage: null
+            });
           });
         },
-        onCancelEdit: () => this.state.patch({ editingTaskId: null, error: null })
+        onCancelEdit: () => this.state.patch({ editingTaskId: null, error: null, successMessage: null })
       })
     );
     root.append(
       renderScheduleList(snapshot.tasks, {
-        onEdit: (taskId) => this.state.patch({ editingTaskId: taskId }),
+        onEdit: (taskId) => this.state.patch({
+          editingTaskId: taskId,
+          error: null,
+          successMessage: null,
+          highlightedTaskId: taskId
+        }),
         onDelete: (taskId) => {
           const workspacePath = this.state.snapshot.workspacePath;
           if (!workspacePath) {
             return;
           }
-          void this.rpc.deleteTask(taskId, workspacePath).then(() => this.state.removeTask(taskId)).catch((error) => {
-            this.state.patch({ error: error instanceof Error ? error.message : "Failed to delete task." });
+          void this.rpc.deleteTask(taskId, workspacePath).then(() => {
+            this.state.removeTask(taskId);
+            this.state.patch({
+              error: null,
+              successMessage: "Schedule deleted.",
+              highlightedTaskId: null
+            });
+          }).catch((error) => {
+            this.state.patch({
+              error: error instanceof Error ? error.message : "Failed to delete task.",
+              successMessage: null
+            });
           });
         },
         onPause: (taskId) => {
@@ -154,8 +201,18 @@ export class WorkspaceScheduledPromptsApp {
           if (!workspacePath) {
             return;
           }
-          void this.rpc.pauseTask(taskId, workspacePath).then((response) => this.state.upsertTask(response.task)).catch((error) => {
-            this.state.patch({ error: error instanceof Error ? error.message : "Failed to pause task." });
+          void this.rpc.pauseTask(taskId, workspacePath).then((response) => {
+            this.state.upsertTask(response.task);
+            this.state.patch({
+              error: null,
+              successMessage: `Schedule "${response.task.name}" paused.`,
+              highlightedTaskId: response.task.id
+            });
+          }).catch((error) => {
+            this.state.patch({
+              error: error instanceof Error ? error.message : "Failed to pause task.",
+              successMessage: null
+            });
           });
         },
         onResume: (taskId) => {
@@ -163,8 +220,18 @@ export class WorkspaceScheduledPromptsApp {
           if (!workspacePath) {
             return;
           }
-          void this.rpc.resumeTask(taskId, workspacePath).then((response) => this.state.upsertTask(response.task)).catch((error) => {
-            this.state.patch({ error: error instanceof Error ? error.message : "Failed to resume task." });
+          void this.rpc.resumeTask(taskId, workspacePath).then((response) => {
+            this.state.upsertTask(response.task);
+            this.state.patch({
+              error: null,
+              successMessage: `Schedule "${response.task.name}" resumed.`,
+              highlightedTaskId: response.task.id
+            });
+          }).catch((error) => {
+            this.state.patch({
+              error: error instanceof Error ? error.message : "Failed to resume task.",
+              successMessage: null
+            });
           });
         },
         onDuplicate: (taskId) => {
@@ -172,11 +239,21 @@ export class WorkspaceScheduledPromptsApp {
           if (!workspacePath) {
             return;
           }
-          void this.rpc.duplicateTask(taskId, workspacePath).then((response) => this.state.upsertTask(response.task)).catch((error) => {
-            this.state.patch({ error: error instanceof Error ? error.message : "Failed to duplicate task." });
+          void this.rpc.duplicateTask(taskId, workspacePath).then((response) => {
+            this.state.upsertTask(response.task);
+            this.state.patch({
+              error: null,
+              successMessage: `Schedule "${response.task.name}" duplicated.`,
+              highlightedTaskId: response.task.id
+            });
+          }).catch((error) => {
+            this.state.patch({
+              error: error instanceof Error ? error.message : "Failed to duplicate task.",
+              successMessage: null
+            });
           });
         }
-      })
+      }, snapshot.highlightedTaskId)
     );
     root.append(renderRunHistory(snapshot.runs));
 

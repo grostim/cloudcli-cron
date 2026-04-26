@@ -8,6 +8,325 @@ import { renderRunHistory } from "./views/run-history.js";
 import { renderScheduleList } from "./views/schedule-list.js";
 import { renderTaskForm } from "./views/task-form.js";
 
+const STYLE_ID = "workspace-scheduled-prompts-styles";
+
+function ensureStyles(): void {
+  if (document.getElementById(STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = `
+    .workspace-scheduled-prompts {
+      --wsp-bg: #f5f7fa;
+      --wsp-panel: #ffffff;
+      --wsp-border: #d9e0e7;
+      --wsp-text: #1d2935;
+      --wsp-muted: #607080;
+      --wsp-accent: #1570ef;
+      --wsp-accent-soft: #e8f1ff;
+      --wsp-success: #1d7a46;
+      --wsp-success-soft: #e8f6ee;
+      --wsp-danger: #b42318;
+      --wsp-danger-soft: #fdecea;
+      color: var(--wsp-text);
+      background: var(--wsp-bg);
+      min-height: 100%;
+      box-sizing: border-box;
+      padding: 20px;
+      font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .workspace-scheduled-prompts[data-theme="dark"] {
+      --wsp-bg: #0f1720;
+      --wsp-panel: #15202b;
+      --wsp-border: #263241;
+      --wsp-text: #dce6ef;
+      --wsp-muted: #97a6b5;
+      --wsp-accent: #61a4ff;
+      --wsp-accent-soft: rgba(97, 164, 255, 0.14);
+      --wsp-success: #53c483;
+      --wsp-success-soft: rgba(83, 196, 131, 0.14);
+      --wsp-danger: #ff7b72;
+      --wsp-danger-soft: rgba(255, 123, 114, 0.14);
+    }
+
+    .workspace-scheduled-prompts * { box-sizing: border-box; }
+    .workspace-scheduled-prompts h1,
+    .workspace-scheduled-prompts h2,
+    .workspace-scheduled-prompts h3,
+    .workspace-scheduled-prompts p { margin: 0; }
+
+    .wsp-shell { display: grid; gap: 16px; }
+    .wsp-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 16px 18px;
+      border: 1px solid var(--wsp-border);
+      border-radius: 12px;
+      background: var(--wsp-panel);
+    }
+    .wsp-header h1 { font-size: 18px; font-weight: 650; }
+    .wsp-header p { color: var(--wsp-muted); margin-top: 4px; }
+    .wsp-workspace-chip {
+      max-width: 42%;
+      padding: 8px 10px;
+      border: 1px solid var(--wsp-border);
+      border-radius: 10px;
+      background: var(--wsp-bg);
+      color: var(--wsp-muted);
+      font-size: 12px;
+      text-align: right;
+      word-break: break-word;
+    }
+
+    .wsp-banner {
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--wsp-border);
+      background: var(--wsp-panel);
+    }
+    .wsp-banner strong { display: block; margin-bottom: 2px; }
+    .wsp-banner-error {
+      border-color: var(--wsp-danger);
+      background: var(--wsp-danger-soft);
+      color: var(--wsp-danger);
+    }
+    .wsp-banner-success {
+      border-color: var(--wsp-success);
+      background: var(--wsp-success-soft);
+      color: var(--wsp-success);
+    }
+    .wsp-banner-info {
+      background: var(--wsp-accent-soft);
+      border-color: var(--wsp-accent);
+    }
+
+    .wsp-main {
+      display: grid;
+      grid-template-columns: minmax(340px, 1.2fr) minmax(320px, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .wsp-stack { display: grid; gap: 16px; }
+    .wsp-panel,
+    .execution-banner,
+    .schedule-list,
+    .run-history {
+      padding: 16px 18px;
+      border: 1px solid var(--wsp-border);
+      border-radius: 12px;
+      background: var(--wsp-panel);
+    }
+
+    .wsp-section-heading h2,
+    .execution-banner h2,
+    .schedule-list h2,
+    .run-history h2 { font-size: 15px; font-weight: 650; }
+    .wsp-section-heading p,
+    .execution-banner p,
+    .schedule-list p,
+    .run-history p { color: var(--wsp-muted); }
+
+    .wsp-panel-title {
+      margin-bottom: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--wsp-muted);
+    }
+
+    .wsp-form { display: grid; gap: 14px; }
+    .wsp-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .wsp-field,
+    .wsp-checkbox-group,
+    .wsp-form-actions {
+      display: grid;
+      gap: 6px;
+    }
+    .wsp-field-span-2 { grid-column: span 2; }
+    .wsp-field label {
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .wsp-field p,
+    .wsp-preview-note {
+      font-size: 12px;
+      color: var(--wsp-muted);
+    }
+
+    .workspace-scheduled-prompts input,
+    .workspace-scheduled-prompts select,
+    .workspace-scheduled-prompts textarea,
+    .workspace-scheduled-prompts button {
+      font: inherit;
+    }
+    .workspace-scheduled-prompts input,
+    .workspace-scheduled-prompts select,
+    .workspace-scheduled-prompts textarea {
+      width: 100%;
+      border: 1px solid var(--wsp-border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: var(--wsp-bg);
+      color: var(--wsp-text);
+      outline: none;
+    }
+    .workspace-scheduled-prompts input:focus,
+    .workspace-scheduled-prompts select:focus,
+    .workspace-scheduled-prompts textarea:focus {
+      border-color: var(--wsp-accent);
+      box-shadow: 0 0 0 3px rgba(21, 112, 239, 0.16);
+    }
+    .workspace-scheduled-prompts textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    .wsp-checkbox-group {
+      grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+      gap: 8px;
+    }
+    .wsp-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--wsp-border);
+      border-radius: 10px;
+      background: var(--wsp-bg);
+    }
+    .wsp-checkbox input {
+      width: auto;
+      margin: 0;
+    }
+
+    .wsp-preview {
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--wsp-bg);
+      border: 1px solid var(--wsp-border);
+      color: var(--wsp-text);
+      min-height: 44px;
+    }
+    .wsp-feedback {
+      min-height: 18px;
+      color: var(--wsp-danger);
+      font-weight: 500;
+    }
+    .wsp-form-actions {
+      grid-auto-flow: column;
+      justify-content: start;
+      align-items: center;
+    }
+    .workspace-scheduled-prompts button {
+      border: 1px solid var(--wsp-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: var(--wsp-panel);
+      color: var(--wsp-text);
+      cursor: pointer;
+    }
+    .workspace-scheduled-prompts button[type="submit"] {
+      background: var(--wsp-accent);
+      border-color: var(--wsp-accent);
+      color: #ffffff;
+      font-weight: 600;
+    }
+    .wsp-secondary-button { background: var(--wsp-bg); }
+
+    .execution-banner {
+      display: grid;
+      gap: 6px;
+    }
+    .wsp-status-chip {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--wsp-accent-soft);
+      color: var(--wsp-accent);
+    }
+
+    .schedule-list ul,
+    .run-history ul {
+      list-style: none;
+      padding: 0;
+      margin: 12px 0 0;
+      display: grid;
+      gap: 10px;
+    }
+    .schedule-list li,
+    .run-history li {
+      border: 1px solid var(--wsp-border);
+      border-radius: 10px;
+      background: var(--wsp-bg);
+      padding: 12px;
+    }
+    .wsp-task-head,
+    .wsp-run-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 6px;
+    }
+    .wsp-task-meta,
+    .wsp-run-meta {
+      display: grid;
+      gap: 4px;
+      color: var(--wsp-muted);
+      font-size: 12px;
+    }
+    .wsp-inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .wsp-inline-actions button {
+      padding: 7px 10px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .wsp-main,
+      .wsp-form-grid {
+        grid-template-columns: 1fr;
+      }
+      .wsp-field-span-2,
+      .wsp-workspace-chip {
+        grid-column: auto;
+        max-width: 100%;
+      }
+      .wsp-header {
+        flex-direction: column;
+      }
+    }
+  `;
+  document.head.append(style);
+}
+
+function renderBanner(kind: "error" | "success" | "info", title: string, message: string): HTMLElement {
+  const banner = document.createElement("div");
+  banner.className = `wsp-banner wsp-banner-${kind}`;
+  banner.innerHTML = `<strong>${title}</strong><span>${message}</span>`;
+  return banner;
+}
+
 export class WorkspaceScheduledPromptsApp {
   private readonly rpc: PluginRpcClient;
   private readonly state = new AppStateStore();
@@ -18,6 +337,7 @@ export class WorkspaceScheduledPromptsApp {
   }
 
   async mount(): Promise<void> {
+    ensureStyles();
     this.unsubscribe = this.state.subscribe(() => this.render());
     await this.loadFromContext(this.api.context.project?.path ?? null);
   }
@@ -127,36 +447,42 @@ export class WorkspaceScheduledPromptsApp {
 
     const root = document.createElement("div");
     root.className = "workspace-scheduled-prompts";
+    root.dataset.theme = this.api.context.theme;
 
     const heading = document.createElement("header");
+    heading.className = "wsp-header";
     heading.innerHTML = `
-      <h1>Workspace Scheduled Prompts</h1>
-      <p>Create and review scheduled prompts for the current workspace.</p>
+      <div>
+        <h1>Workspace Scheduled Prompts</h1>
+        <p>Create, review, and monitor scheduled prompts for the active workspace.</p>
+      </div>
+      <div class="wsp-workspace-chip">
+        ${snapshot.workspacePath ?? "No workspace selected"}
+      </div>
     `;
     root.append(heading);
 
     if (snapshot.error) {
-      const error = document.createElement("p");
-      error.textContent = snapshot.error;
-      root.append(error);
+      root.append(renderBanner("error", "Action required", snapshot.error));
     }
 
     if (snapshot.successMessage) {
-      const success = document.createElement("p");
-      success.textContent = snapshot.successMessage;
+      const success = renderBanner("success", "Saved", snapshot.successMessage);
       success.setAttribute("role", "status");
       success.setAttribute("aria-live", "polite");
       root.append(success);
     }
 
     if (snapshot.busy) {
-      const loading = document.createElement("p");
-      loading.textContent = "Loading workspace state...";
-      root.append(loading);
+      root.append(renderBanner("info", "Loading", "Refreshing workspace schedules and run history."));
     }
 
-    root.append(renderExecutionBanner(snapshot.capability));
-    root.append(
+    const main = document.createElement("div");
+    main.className = "wsp-main";
+
+    const left = document.createElement("div");
+    left.className = "wsp-stack";
+    left.append(
       renderTaskForm(this.currentEditingTask(), {
         onSubmit: (request) => {
           void this.handleSaveTask(request).catch((error) => {
@@ -169,7 +495,11 @@ export class WorkspaceScheduledPromptsApp {
         onCancelEdit: () => this.state.patch({ editingTaskId: null, error: null, successMessage: null })
       })
     );
-    root.append(
+
+    const right = document.createElement("div");
+    right.className = "wsp-stack";
+    right.append(renderExecutionBanner(snapshot.capability));
+    right.append(
       renderScheduleList(snapshot.tasks, {
         onEdit: (taskId) => this.state.patch({
           editingTaskId: taskId,
@@ -255,7 +585,9 @@ export class WorkspaceScheduledPromptsApp {
         }
       }, snapshot.highlightedTaskId)
     );
-    root.append(renderRunHistory(snapshot.runs));
+    right.append(renderRunHistory(snapshot.runs));
+    main.append(left, right);
+    root.append(main);
 
     this.container.append(root);
   }

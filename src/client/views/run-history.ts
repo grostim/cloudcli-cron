@@ -1,5 +1,9 @@
 import type { ScheduledRun } from "../../shared/model.js";
 
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export function renderRunHistory(runs: ScheduledRun[]): HTMLElement {
   const section = document.createElement("section");
   section.className = "run-history";
@@ -15,7 +19,17 @@ export function renderRunHistory(runs: ScheduledRun[]): HTMLElement {
   const list = document.createElement("ul");
   for (const run of runs) {
     const item = document.createElement("li");
-    item.innerHTML = `<strong>${run.status}</strong> ${run.outcomeSummary} <small>${run.scheduledFor}</small>`;
+    item.innerHTML = `
+      <div class="wsp-run-head">
+        <strong>${titleCase(run.status)}</strong>
+        <span class="wsp-status-chip">${titleCase(run.status)}</span>
+      </div>
+      <div class="wsp-run-meta">
+        <span>${run.outcomeSummary}</span>
+        <span>Scheduled for: ${run.scheduledFor}</span>
+        ${run.failureReason ? `<span>Failure: ${run.failureReason}</span>` : ""}
+      </div>
+    `;
     list.append(item);
   }
   section.append(list);

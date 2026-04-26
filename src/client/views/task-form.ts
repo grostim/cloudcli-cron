@@ -17,6 +17,20 @@ export interface TaskFormHandlers {
   onCancelEdit(): void;
 }
 
+const WEEKDAYS: WeekdayName[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday"
+];
+
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function recurrenceFields(task: WorkspaceTask | null): string {
   const recurrence = task?.recurrence;
   const scheduleType = recurrence?.scheduleType ?? "daily";
@@ -28,24 +42,63 @@ function recurrenceFields(task: WorkspaceTask | null): string {
       ? recurrence.localTime
       : "09:00";
   const runAt = recurrence?.scheduleType === "one_time" ? recurrence.runAt : "";
-  const weekdays = recurrence?.scheduleType === "weekdays" ? recurrence.weekdays.join(",") : "monday,tuesday,wednesday,thursday,friday";
+  const weekdays = recurrence?.scheduleType === "weekdays" ? recurrence.weekdays : ["monday", "tuesday", "wednesday", "thursday", "friday"];
   const dayOfWeek = recurrence?.scheduleType === "weekly" ? recurrence.dayOfWeek : "monday";
   const dayOfMonth = recurrence?.scheduleType === "monthly" ? recurrence.dayOfMonth : 1;
 
   return `
-    <label>Schedule Type <select name="scheduleType">
-      <option value="one_time"${scheduleType === "one_time" ? " selected" : ""}>One-time</option>
-      <option value="daily"${scheduleType === "daily" ? " selected" : ""}>Daily</option>
-      <option value="weekdays"${scheduleType === "weekdays" ? " selected" : ""}>Selected weekdays</option>
-      <option value="weekly"${scheduleType === "weekly" ? " selected" : ""}>Weekly</option>
-      <option value="monthly"${scheduleType === "monthly" ? " selected" : ""}>Monthly</option>
-    </select></label>
-    <label>Timezone <input name="timezone" value="${timezone}"></label>
-    <label>Local Time <input name="localTime" value="${localTime}" placeholder="09:00"></label>
-    <label>Run At <input name="runAt" value="${runAt}" placeholder="2026-04-26T09:00:00.000Z"></label>
-    <label>Weekdays <input name="weekdays" value="${weekdays}" placeholder="monday,tuesday"></label>
-    <label>Day Of Week <input name="dayOfWeek" value="${dayOfWeek}" placeholder="monday"></label>
-    <label>Day Of Month <input name="dayOfMonth" value="${dayOfMonth}" type="number" min="1" max="31"></label>
+    <div class="wsp-field">
+      <label for="wsp-schedule-type">Schedule Type</label>
+      <select id="wsp-schedule-type" name="scheduleType">
+        <option value="one_time"${scheduleType === "one_time" ? " selected" : ""}>One-time</option>
+        <option value="daily"${scheduleType === "daily" ? " selected" : ""}>Daily</option>
+        <option value="weekdays"${scheduleType === "weekdays" ? " selected" : ""}>Selected weekdays</option>
+        <option value="weekly"${scheduleType === "weekly" ? " selected" : ""}>Weekly</option>
+        <option value="monthly"${scheduleType === "monthly" ? " selected" : ""}>Monthly</option>
+      </select>
+      <p>Choose when this prompt should run in the current workspace.</p>
+    </div>
+    <div class="wsp-field">
+      <label for="wsp-timezone">Timezone</label>
+      <input id="wsp-timezone" name="timezone" value="${timezone}" placeholder="Europe/Paris">
+      <p>IANA timezone used to compute the next run.</p>
+    </div>
+    <div class="wsp-field" data-schedule-scope="timed">
+      <label for="wsp-local-time">Local Time</label>
+      <input id="wsp-local-time" name="localTime" value="${localTime}" placeholder="09:00" inputmode="numeric">
+      <p>24-hour local time for recurring schedules.</p>
+    </div>
+    <div class="wsp-field" data-schedule-scope="one_time">
+      <label for="wsp-run-at">Run At</label>
+      <input id="wsp-run-at" name="runAt" value="${runAt}" placeholder="2026-04-26T09:00:00.000Z">
+      <p>Absolute ISO timestamp for a single execution.</p>
+    </div>
+    <div class="wsp-field wsp-field-span-2" data-schedule-scope="weekdays">
+      <label>Weekdays</label>
+      <div class="wsp-checkbox-group">
+        ${WEEKDAYS.map((weekday) => `
+          <label class="wsp-checkbox">
+            <input type="checkbox" name="weekday" value="${weekday}"${weekdays.includes(weekday) ? " checked" : ""}>
+            <span>${titleCase(weekday.slice(0, 3))}</span>
+          </label>
+        `).join("")}
+      </div>
+      <p>Only the checked days will trigger this prompt.</p>
+    </div>
+    <div class="wsp-field" data-schedule-scope="weekly">
+      <label for="wsp-day-of-week">Day Of Week</label>
+      <select id="wsp-day-of-week" name="dayOfWeek">
+        ${WEEKDAYS.map((weekday) => `
+          <option value="${weekday}"${dayOfWeek === weekday ? " selected" : ""}>${titleCase(weekday)}</option>
+        `).join("")}
+      </select>
+      <p>The run happens every week on this weekday.</p>
+    </div>
+    <div class="wsp-field" data-schedule-scope="monthly">
+      <label for="wsp-day-of-month">Day Of Month</label>
+      <input id="wsp-day-of-month" name="dayOfMonth" value="${dayOfMonth}" type="number" min="1" max="31">
+      <p>If the day does not exist in a month, it clamps to the last day.</p>
+    </div>
   `;
 }
 
@@ -68,9 +121,8 @@ function buildRecurrence(formData: FormData): RecurrenceDefinition {
         scheduleType,
         timezone,
         localTime,
-        weekdays: String(formData.get("weekdays") ?? "")
-          .split(",")
-          .map((entry) => entry.trim())
+        weekdays: formData.getAll("weekday")
+          .map((entry) => String(entry).trim())
           .filter(Boolean) as WeekdayName[]
       } satisfies WeekdaysRecurrenceDefinition;
     case "weekly":
@@ -102,16 +154,42 @@ export function renderTaskForm(task: WorkspaceTask | null, handlers: TaskFormHan
   const section = document.createElement("section");
   section.className = "task-form";
   section.innerHTML = `
-    <h2>${task ? "Edit Schedule" : "Create Schedule"}</h2>
-    <form>
-      <label>Name <input name="name" value="${task?.name ?? ""}" required></label>
-      <label>Prompt <textarea name="prompt" rows="6" required>${task?.prompt ?? ""}</textarea></label>
-      ${recurrenceFields(task)}
-      <p data-testid="task-form-feedback"></p>
-      <p data-testid="task-form-preview"></p>
-      <div>
-        <button type="submit">${task ? "Save Task" : "Create Task"}</button>
-        ${task ? '<button type="button" data-testid="cancel-edit">Cancel</button>' : ""}
+    <div class="wsp-section-heading">
+      <h2>${task ? "Edit Schedule" : "Create Schedule"}</h2>
+      <p>${task ? "Update the prompt or cadence, then save the schedule." : "Define the prompt, cadence, and timezone for this workspace."}</p>
+    </div>
+    <form class="wsp-form">
+      <div class="wsp-panel">
+        <div class="wsp-panel-title">Prompt</div>
+        <div class="wsp-field">
+          <label for="wsp-name">Name</label>
+          <input id="wsp-name" name="name" value="${task?.name ?? ""}" required placeholder="Morning summary">
+          <p>Short label shown in the schedule list.</p>
+        </div>
+        <div class="wsp-field">
+          <label for="wsp-prompt">Prompt</label>
+          <textarea id="wsp-prompt" name="prompt" rows="6" required placeholder="Summarize the workspace and highlight blockers.">${task?.prompt ?? ""}</textarea>
+          <p>The exact prompt sent when the job runs.</p>
+        </div>
+      </div>
+
+      <div class="wsp-panel">
+        <div class="wsp-panel-title">Timing</div>
+        <div class="wsp-form-grid">
+          ${recurrenceFields(task)}
+        </div>
+      </div>
+
+      <div class="wsp-panel">
+        <div class="wsp-panel-title">Validation</div>
+        <p class="wsp-feedback" data-testid="task-form-feedback" role="alert"></p>
+        <div class="wsp-preview" data-testid="task-form-preview"></div>
+        <p class="wsp-preview-note">Saving creates or updates the job immediately in this workspace.</p>
+      </div>
+
+      <div class="wsp-form-actions">
+        <button type="submit">${task ? "Save Schedule" : "Create Schedule"}</button>
+        ${task ? '<button type="button" data-testid="cancel-edit" class="wsp-secondary-button">Cancel</button>' : ""}
       </div>
     </form>
   `;
@@ -129,7 +207,23 @@ export function renderTaskForm(task: WorkspaceTask | null, handlers: TaskFormHan
     throw new Error("Task form feedback elements failed to render");
   }
 
+  const syncVisibility = (): void => {
+    const scheduleType = String(new FormData(form).get("scheduleType") ?? "daily") as ScheduleType;
+    const toggle = (scope: string, visible: boolean): void => {
+      form.querySelectorAll<HTMLElement>(`[data-schedule-scope="${scope}"]`).forEach((node) => {
+        node.hidden = !visible;
+      });
+    };
+
+    toggle("timed", scheduleType !== "one_time");
+    toggle("one_time", scheduleType === "one_time");
+    toggle("weekdays", scheduleType === "weekdays");
+    toggle("weekly", scheduleType === "weekly");
+    toggle("monthly", scheduleType === "monthly");
+  };
+
   const refreshPreview = (): RecurrenceDefinition | null => {
+    syncVisibility();
     feedback.textContent = "";
     const formData = new FormData(form);
     const name = String(formData.get("name") ?? "").trim();

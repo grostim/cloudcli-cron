@@ -29,19 +29,26 @@ export function renderScheduleList(
     const item = document.createElement("li");
     if (task.id === highlightedTaskId) {
       item.setAttribute("data-highlighted", "true");
-      item.style.outline = "2px solid #2f7d32";
-      item.style.outlineOffset = "4px";
+      item.style.outline = "2px solid var(--wsp-success)";
+      item.style.outlineOffset = "2px";
     }
     item.innerHTML = `
-      <div>
-        <strong>${task.name}</strong>
-        <p>${task.recurrenceSummary}</p>
-        <p>Next run: ${task.nextRunAt ?? "Not scheduled"}</p>
-        ${task.id === highlightedTaskId ? "<p>Saved just now.</p>" : ""}
+      <div class="wsp-task-head">
+        <div>
+          <strong>${task.name}</strong>
+          <p>${task.recurrenceSummary}</p>
+        </div>
+        <span class="wsp-status-chip">${task.enabled ? "Enabled" : "Paused"}</span>
+      </div>
+      <div class="wsp-task-meta">
+        <span>Next run: ${task.nextRunAt ?? "Not scheduled"}</span>
+        <span>Last status: ${task.lastRunStatus ?? "None yet"}</span>
+        ${task.id === highlightedTaskId ? "<span>Saved just now.</span>" : ""}
       </div>
     `;
 
     const controls = document.createElement("div");
+    controls.className = "wsp-inline-actions";
     const edit = document.createElement("button");
     edit.textContent = "Edit";
     edit.addEventListener("click", () => handlers.onEdit(task.id));

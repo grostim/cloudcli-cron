@@ -18,7 +18,7 @@ export function renderExecutionBanner(capability: ExecutionCapability): HTMLElem
   section.className = `execution-banner status-${capability.status}`;
   section.innerHTML = `
     <h2>Execution</h2>
-    <p><strong>${statusLabel(capability.status)}</strong></p>
+    <div class="wsp-status-chip">${statusLabel(capability.status)}</div>
     <p>${capability.message}</p>
   `;
   return section;

@@ -8,7 +8,7 @@ export interface ExecutionRequestMetadata {
   command: string;
   args: string[];
   cwd: string;
-  promptTransport: "stdin";
+  promptTransport: "stdin" | "argument";
 }
 
 export interface ExecutionResult {
@@ -61,12 +61,16 @@ function replaceTemplateTokens(input: string, task: WorkspaceTask, scheduledFor:
     .replaceAll("{{scheduledFor}}", scheduledFor);
 }
 
+function usesPromptTemplate(profile: ExecutionProfile): boolean {
+  return profile.command.includes("{{prompt}}") || profile.args.some((entry) => entry.includes("{{prompt}}"));
+}
+
 function buildExecutionRequest(task: WorkspaceTask, profile: ExecutionProfile, scheduledFor: string): ExecutionRequestMetadata {
   return {
     command: replaceTemplateTokens(profile.command, task, scheduledFor),
     args: profile.args.map((entry) => replaceTemplateTokens(entry, task, scheduledFor)),
     cwd: task.workspacePath,
-    promptTransport: "stdin"
+    promptTransport: usesPromptTemplate(profile) ? "argument" : "stdin"
   };
 }
 
@@ -175,7 +179,9 @@ export class LocalExecutionAdapter {
         });
       });
 
-      child.stdin.write(task.prompt);
+      if (request.promptTransport === "stdin") {
+        child.stdin.write(task.prompt);
+      }
       child.stdin.end();
     });
   }

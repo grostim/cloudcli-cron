@@ -52,6 +52,23 @@ describe("local execution adapter", () => {
     expect(result.outcomeSummary).toContain(task.prompt);
     expect(result.outcomeSummary).toContain(task.name);
     expect(result.executionRequest.args.at(-1)).toBe(task.name);
+    expect(result.executionRequest.promptTransport).toBe("stdin");
+  });
+
+  it("expands {{prompt}} inline when the command preset uses argument transport", async () => {
+    const adapter = new LocalExecutionAdapter();
+    const task = createTask();
+    const profile = createProfile([
+      "-e",
+      "console.log(process.argv[1]);",
+      "{{prompt}}"
+    ]);
+
+    const result = await adapter.execute(task, profile, "2026-04-27T07:00:00.000Z");
+
+    expect(result.status).toBe("succeeded");
+    expect(result.outcomeSummary).toContain(task.prompt);
+    expect(result.executionRequest.promptTransport).toBe("argument");
   });
 
   it("marks non-zero exit codes as failed and captures stderr", async () => {

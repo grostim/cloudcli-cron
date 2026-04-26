@@ -5,31 +5,31 @@ import { renderExecutionBanner } from "../../src/client/views/execution-banner.j
 import { renderRunHistory } from "../../src/client/views/run-history.js";
 
 describe("execution banner", () => {
-  it("submits local execution settings", () => {
+  it("applies presets and submits local execution settings", () => {
     const onSave = vi.fn();
     const section = renderExecutionBanner({
       status: "needs_config",
       message: "Configure a local execution command to enable automatic prompt runs."
     }, null, { onSave });
 
+    const preset = section.querySelector<HTMLSelectElement>('[name="preset"]');
     const command = section.querySelector<HTMLInputElement>('[name="command"]');
     const args = section.querySelector<HTMLTextAreaElement>('[name="args"]');
     const timeout = section.querySelector<HTMLInputElement>('[name="timeoutMs"]');
 
-    if (!command || !args || !timeout) {
+    if (!preset || !command || !args || !timeout) {
       throw new Error("Execution fields failed to render");
     }
 
-    command.value = "codex";
-    args.value = "exec\n--json";
-    timeout.value = "120000";
+    preset.value = "codex";
+    preset.dispatchEvent(new Event("change", { bubbles: true }));
 
     section.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 
     expect(onSave).toHaveBeenCalledWith({
       command: "codex",
-      args: ["exec", "--json"],
-      timeoutMs: 120000
+      args: ["exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "--ask-for-approval", "never"],
+      timeoutMs: 300000
     });
   });
 });

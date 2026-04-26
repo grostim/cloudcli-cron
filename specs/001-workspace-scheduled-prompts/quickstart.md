@@ -4,10 +4,9 @@
 
 - Node.js 18+ available for local build and test
 - A CloudCLI-compatible host with plugin support
-- For automatic execution in hosted mode:
-  - a CloudCLI API key
-  - the target `environmentId`
-  - the target `projectName` inside `/workspace/`
+- For automatic execution in local mode:
+  - the desired local agent CLI available on `PATH`
+  - a command template that can accept the scheduled prompt and run inside the workspace
 
 ## Local development
 
@@ -36,16 +35,11 @@ npm test
 3. Enable the plugin tab.
 4. Confirm the plugin loads in both light and dark theme contexts.
 
-## Configure hosted execution
+## Configure local execution
 
-1. Add the CloudCLI API key as a plugin secret in the host settings.
-2. Open the plugin tab in the target workspace.
-3. Provide or confirm:
-   - `environmentId`
-   - `projectName`
-   - default provider
-   - default model
-4. Save settings and validate that the execution banner reports `ready`.
+1. Open the plugin tab in the target workspace.
+2. Configure the local execution command and arguments template.
+3. Save settings and validate that the execution banner reports `ready`.
 
 ## Validate primary flows
 
@@ -61,7 +55,7 @@ npm test
 2. Confirm the recurrence summary is human-readable before save.
 3. Save and verify the next run is rendered correctly.
 
-### Verify hosted execution
+### Verify local execution
 
 1. Trigger `Run now` on a saved task or wait for the next due slot.
 2. Confirm a run record enters `running`, then transitions to `succeeded` or `failed`.
@@ -69,15 +63,15 @@ npm test
 
 ### Verify missed-run behavior
 
-1. Disable or invalidate hosted execution settings before a due occurrence.
+1. Disable or invalidate local execution settings before a due occurrence.
 2. Allow the scheduled time to pass.
 3. Reopen the plugin and confirm the run is recorded as `missed`.
 4. Confirm recurring tasks continue from the next future slot rather than replaying missed
    occurrences automatically.
 
-## Validate unsupported self-hosted behavior
+## Validate unsupported local behavior
 
-1. Run the plugin in a self-hosted ClaudeCodeUI deployment without hosted API access.
+1. Configure a missing or invalid local executable.
 2. Confirm the schedule-management UI still loads.
 3. Confirm the execution banner reports automation as unavailable instead of pretending runs will
    execute automatically.

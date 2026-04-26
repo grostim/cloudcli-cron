@@ -355,15 +355,16 @@ components:
         - $ref: "#/components/schemas/WorkspaceScopedRequest"
         - type: object
           properties:
-            environmentId:
+            command:
               type: string
-            projectName:
-              type: string
-            provider:
-              type: string
-            model:
-              type: string
-          required: [environmentId, projectName, provider, model]
+            args:
+              type: array
+              items:
+                type: string
+            timeoutMs:
+              type: integer
+              minimum: 1000
+          required: [command, args]
     ExecutionProfileResponse:
       type: object
       properties:

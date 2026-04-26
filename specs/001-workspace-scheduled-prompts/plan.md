@@ -7,11 +7,9 @@
 
 Build a CloudCLI tab plugin that lets users manage workspace-scoped scheduled prompts, persist
 task and run history state in a backend data store, compute bounded recurrence rules in-process,
-and trigger due runs through CloudCLI's hosted `agent/execute` API when execution credentials are
-configured. Because the plugin runtime does not provide a direct chat or agent trigger inside the
-local host, the automatic execution path in v1 targets CloudCLI-hosted environments; self-hosted
-ClaudeCodeUI deployments can still render schedules and history but require a future local
-execution adapter for full parity.
+and trigger due runs by launching a user-configured local CLI command inside the workspace from the
+plugin backend subprocess. This keeps the feature fully local and avoids any dependency on hosted
+CloudCLI services or undocumented host-chat integrations.
 
 ## Technical Context
 
@@ -22,14 +20,15 @@ execution adapter for full parity.
 partitioned into task state, run history, and plugin settings  
 **Testing**: Vitest unit tests, jsdom frontend tests, integration tests for RPC handlers and
 scheduler loops, contract validation against plugin RPC schemas  
-**Target Platform**: CloudCLI plugin tab plus Node subprocess on CloudCLI UI v1.0+; automatic
-execution path requires CloudCLI hosted API access  
+**Target Platform**: CloudCLI plugin tab plus Node subprocess on CloudCLI UI v1.0+ or local
+ClaudeCodeUI-compatible installs with access to the desired CLI executable on `PATH`  
 **Project Type**: CloudCLI plugin with browser frontend module and backend subprocess  
 **Performance Goals**: Load workspace task state and upcoming runs in <=2s for 100 tasks; refresh
 500 run records in <=2s; dispatch due runs within 60s of target time when execution is available  
 **Constraints**: No direct plugin-to-chat API, minimal subprocess environment, install flow blocks
-`postinstall` scripts, no catch-up bursts for missed recurrences, one occurrence must execute at
-most once, UI must remain usable on narrow widths  
+`postinstall` scripts, local execution must work through a configured command template, no
+catch-up bursts for missed recurrences, one occurrence must execute at most once, UI must remain
+usable on narrow widths  
 **Scale/Scope**: One plugin tab, one active scheduler loop per plugin process, up to 100 active
 tasks and 500 retained runs per workspace, daily/weekday/weekly/monthly recurrences only
 
@@ -48,8 +47,8 @@ tasks and 500 retained runs per workspace, daily/weekday/weekly/monthly recurren
 - Performance Budgets: PASS. The plan constrains load and refresh times, avoids full filesystem
   rescans, and uses incremental scheduler wake-ups instead of per-task busy polling.
 - Simplicity and Dependency Discipline: PASS. The plan avoids native scheduler/database
-  dependencies, uses built-in storage primitives, and introduces only test dependencies plus the
-  hosted execution adapter.
+  dependencies, uses built-in storage primitives, and introduces only test dependencies plus a
+  local command execution adapter.
 
 ## Project Structure
 
@@ -63,7 +62,7 @@ specs/001-workspace-scheduled-prompts/
 ├── quickstart.md
 ├── contracts/
 │   ├── plugin-rpc.yaml
-│   └── agent-execution.md
+│   └── local-execution.md
 └── tasks.md
 ```
 

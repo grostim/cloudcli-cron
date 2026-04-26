@@ -17,11 +17,11 @@
 
 **Purpose**: Create the plugin skeleton and development tooling required by all later work.
 
-- [ ] T001 Create plugin manifest and package metadata in `manifest.json` and `package.json`
-- [ ] T002 [P] Configure TypeScript project build in `tsconfig.json`
-- [ ] T003 [P] Add plugin icon asset in `icon.svg`
-- [ ] T004 [P] Create frontend, backend, and shared source folders with placeholder entry files in `src/index.ts`, `src/types.ts`, `src/client/app.ts`, `src/server/http.ts`, and `src/shared/model.ts`
-- [ ] T005 [P] Configure Vitest test harness for browser and Node coverage in `package.json`, `tsconfig.json`, and `tests/`
+- [X] T001 Create plugin manifest and package metadata in `manifest.json` and `package.json`
+- [X] T002 [P] Configure TypeScript project build in `tsconfig.json`
+- [X] T003 [P] Add plugin icon asset in `icon.svg`
+- [X] T004 [P] Create frontend, backend, and shared source folders with placeholder entry files in `src/index.ts`, `src/types.ts`, `src/client/app.ts`, `src/server/http.ts`, and `src/shared/model.ts`
+- [X] T005 [P] Configure Vitest test harness for browser and Node coverage in `package.json`, `tsconfig.json`, and `tests/`
 
 ---
 
@@ -31,17 +31,17 @@
 
 **⚠️ CRITICAL**: No user story work should start until this phase is complete.
 
-- [ ] T006 Define shared domain types and RPC payload types in `src/shared/model.ts` and `src/shared/contracts.ts`
-- [ ] T007 [P] Implement workspace identity helpers and workspace-path hashing in `src/shared/workspace.ts`
-- [ ] T008 [P] Implement JSON persistence and workspace ledger loading/saving in `src/server/storage.ts`
-- [ ] T009 [P] Implement recurrence calculation primitives and next-occurrence resolution in `src/server/recurrence.ts`
-- [ ] T010 [P] Implement execution settings validation and capability state evaluation in `src/server/settings.ts`
-- [ ] T011 Implement backend RPC router and request parsing for contract endpoints in `src/server/http.ts`
-- [ ] T012 Implement scheduler loop foundation, duplicate-occurrence keys, and persisted due-run ledger handling in `src/server/scheduler.ts`
-- [ ] T013 [P] Implement frontend RPC client helpers and workspace-state fetch wrapper in `src/client/api.ts`
-- [ ] T014 [P] Implement frontend state container for tasks, runs, capability, and form state in `src/client/state.ts`
-- [ ] T015 Add contract baseline tests for workspace-state and task payload schemas in `tests/contract/plugin-rpc.test.ts`
-- [ ] T016 Add unit coverage for workspace hashing, ledger persistence, and recurrence edge cases in `tests/unit/workspace.test.ts`, `tests/unit/storage.test.ts`, and `tests/unit/recurrence.test.ts`
+- [X] T006 Define shared domain types and RPC payload types in `src/shared/model.ts` and `src/shared/contracts.ts`
+- [X] T007 [P] Implement workspace identity helpers and workspace-path hashing in `src/shared/workspace.ts`
+- [X] T008 [P] Implement JSON persistence and workspace ledger loading/saving in `src/server/storage.ts`
+- [X] T009 [P] Implement recurrence calculation primitives and next-occurrence resolution in `src/server/recurrence.ts`
+- [X] T010 [P] Implement execution settings validation and capability state evaluation in `src/server/settings.ts`
+- [X] T011 Implement backend RPC router and request parsing for contract endpoints in `src/server/http.ts`
+- [X] T012 Implement scheduler loop foundation, duplicate-occurrence keys, and persisted due-run ledger handling in `src/server/scheduler.ts`
+- [X] T013 [P] Implement frontend RPC client helpers and workspace-state fetch wrapper in `src/client/api.ts`
+- [X] T014 [P] Implement frontend state container for tasks, runs, capability, and form state in `src/client/state.ts`
+- [X] T015 Add contract baseline tests for workspace-state and task payload schemas in `tests/contract/plugin-rpc.test.ts`
+- [X] T016 Add unit coverage for workspace hashing, ledger persistence, and recurrence edge cases in `tests/unit/workspace.test.ts`, `tests/unit/storage.test.ts`, and `tests/unit/recurrence.test.ts`
 
 **Checkpoint**: Foundation ready. User story implementation can begin.
 
@@ -74,27 +74,27 @@
 
 ## Phase 4: User Story 2 - Monitor execution and recover from failure (Priority: P2)
 
-**Goal**: Let a user inspect upcoming runs and history, configure hosted execution, and see failed or missed runs with clear recovery paths.
+**Goal**: Let a user inspect upcoming runs and history, configure local execution, and see failed or missed runs with clear recovery paths.
 
-**Independent Test**: With execution configured, a due task creates a run record, transitions through execution states, and exposes failed or missed outcomes plus retry affordances without depending on User Story 3 controls.
+**Independent Test**: With a local execution command configured, a due task creates a run record, launches the configured CLI in the workspace, and exposes failed or missed outcomes plus retry affordances without depending on User Story 3 controls.
 
 ### Tests for User Story 2
 
 - [ ] T026 [P] [US2] Extend contract tests for run-history, retry, and execution-profile endpoints in `tests/contract/plugin-rpc.test.ts`
-- [ ] T027 [P] [US2] Add integration tests for hosted execution dispatch, missed-run recording, and no catch-up replay in `tests/integration/execution-adapter.test.ts` and `tests/integration/scheduler-loop.test.ts`
-- [ ] T028 [P] [US2] Add frontend jsdom test for execution capability banner and run-history status rendering in `tests/integration/run-history.test.ts`
+- [ ] T027 [P] [US2] Add integration tests for local command execution, missed-run recording, and no catch-up replay in `tests/integration/execution-adapter.test.ts` and `tests/integration/scheduler-loop.test.ts`
+- [ ] T028 [P] [US2] Add frontend jsdom test for local execution capability banner and run-history status rendering in `tests/integration/run-history.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T029 [P] [US2] Implement hosted CloudCLI `agent/execute` adapter and request mapping in `src/server/execution-adapter.ts`
-- [ ] T030 [P] [US2] Implement execution-profile save/load endpoints and capability evaluation in `src/server/http.ts` and `src/server/settings.ts`
+- [ ] T029 [P] [US2] Implement local command execution adapter and process launch mapping in `src/server/execution-adapter.ts`
+- [ ] T030 [P] [US2] Implement local execution-profile save/load endpoints and capability evaluation in `src/server/http.ts` and `src/server/settings.ts`
 - [ ] T031 [P] [US2] Implement run-history query, retry action, and outcome summarization in `src/server/http.ts` and `src/server/scheduler.ts`
 - [ ] T032 [P] [US2] Implement scheduler handling for `running`, `failed`, `missed`, and duplicate-prevention states in `src/server/scheduler.ts`
-- [ ] T033 [P] [US2] Build execution readiness banner and hosted configuration panel in `src/client/views/execution-banner.ts`
+- [ ] T033 [P] [US2] Build execution readiness banner and local command configuration panel in `src/client/views/execution-banner.ts`
 - [ ] T034 [P] [US2] Build run-history and upcoming-runs UI with recovery actions in `src/client/views/run-history.ts`
 - [ ] T035 [US2] Wire execution settings, refresh behavior, and manual retry/run-now flows in `src/client/app.ts` and `src/client/api.ts`
 
-**Checkpoint**: User Stories 1 and 2 both work independently, including hosted execution and visible failure handling.
+**Checkpoint**: User Stories 1 and 2 both work independently, including local execution and visible failure handling.
 
 ---
 
@@ -126,7 +126,7 @@
 
 **Purpose**: Finish documentation, performance validation, and release hardening that affect multiple stories.
 
-- [ ] T044 [P] Add README usage, installation, and hosted-vs-self-hosted behavior notes in `README.md`
+- [ ] T044 [P] Add README usage, installation, and local execution behavior notes in `README.md`
 - [ ] T045 [P] Add regression tests for monthly overflow policy and multi-missed-run summaries in `tests/unit/recurrence.test.ts` and `tests/integration/scheduler-loop.test.ts`
 - [ ] T046 [P] Add lightweight performance benchmarks or fixtures for 100 tasks and 500 runs in `tests/integration/performance.test.ts`
 - [ ] T047 Validate quickstart flows and record any fixes in `specs/001-workspace-scheduled-prompts/quickstart.md`
@@ -197,7 +197,7 @@ Task: "T023 [US1] Build task form UI in src/client/views/task-form.ts"
 ### Incremental Delivery
 
 1. Deliver US1 for schedule creation and persistence.
-2. Add US2 for hosted execution visibility, failure handling, and missed-run recovery.
+2. Add US2 for local execution visibility, failure handling, and missed-run recovery.
 3. Add US3 for lifecycle controls and operational maintenance.
 4. Finish with cross-cutting hardening, documentation, and performance validation.
 
@@ -217,4 +217,4 @@ Task: "T023 [US1] Build task form UI in src/client/views/task-form.ts"
 - All tasks use the required checklist format with IDs, optional `[P]`, and `[US#]` labels where applicable.
 - Exact file paths follow the single-project plugin structure defined in [plan.md](./plan.md).
 - MVP scope is **User Story 1**.
-- Avoid expanding v1 into cron syntax or unsupported self-hosted execution paths unless the contracts change first.
+- Avoid expanding v1 into cron syntax or undocumented host-chat integrations unless the contracts change first.

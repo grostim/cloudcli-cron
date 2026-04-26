@@ -75,23 +75,20 @@
 
 ## ExecutionProfile
 
-- **Purpose**: Stores the execution settings required to dispatch a task through the hosted
-  CloudCLI Agent API.
+- **Purpose**: Stores the execution settings required to dispatch a task through a local CLI
+  command launched in the workspace.
 - **Fields**:
   - `workspaceKey`
-  - `environmentId`
-  - `projectName`
-  - `provider`: `claude | codex | cursor | gemini` subset supported by CloudCLI
-  - `model`
-  - `apiSecretName`: plugin secret key used to retrieve the API token header
-  - `mode`: `hosted_api | unsupported_local`
+  - `command`
+  - `args`: ordered argument template strings
+  - `timeoutMs`
+  - `mode`: `local_command`
   - `lastValidatedAt`
   - `validationStatus`: `ready | needs_config | invalid | unsupported`
 - **Validation**:
-  - hosted mode requires `environmentId`, `projectName`, `provider`, `model`, and a present API
-    secret
-  - `projectName` must be derivable from the current workspace path or be explicitly confirmed by
-    the user
+  - local mode requires a non-empty `command`
+  - `args` must be serializable string values
+  - `timeoutMs` must stay within a documented safe range
 
 ## WorkspaceLedger
 

@@ -116,8 +116,9 @@ A CloudCLI user edits, pauses, resumes, duplicates, or deletes scheduled tasks s
 ## Assumptions
 
 - v1 is scoped to workspace-level scheduled prompts inside CloudCLI, not to cross-workspace orchestration or organization-wide automation.
-- Scheduled execution uses the agent environment already configured for the target workspace rather than introducing a separate automation identity in v1.
+- Scheduled execution in v1 uses a user-configured local command template launched from the plugin backend inside the target workspace.
 - v1 recurrence rules are intentionally limited to one-time, daily, selected weekdays, weekly, and monthly schedules rather than arbitrary cron-style expressions.
 - If the host instance or target workspace is unavailable at the scheduled moment, the system marks the occurrence as `missed`, surfaces recovery options, and does not auto-replay it later.
 - v1 notifications are limited to in-product visibility within CloudCLI; external channels such as email, chat, or webhooks are outside the initial scope.
+- v1 targets local CloudCLI or ClaudeCodeUI installations and does not depend on a hosted CloudCLI account.
 - Users install this plugin from a trusted source and expect behavior consistent with other CloudCLI plugin tabs.

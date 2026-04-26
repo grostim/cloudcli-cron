@@ -13,21 +13,20 @@
   - Framework-heavy frontend: rejected because the starter already supports plain TypeScript modules
     and this feature does not justify a framework dependency.
 
-## Decision 2: Use CloudCLI hosted Agent Execute API for automatic prompt execution
+## Decision 2: Use a configurable local CLI command for automatic prompt execution
 
-- **Decision**: Route automatic executions through CloudCLI's hosted `POST /api/v1/agent/execute`
-  endpoint, using a plugin secret for the API key plus stored environment/provider/model settings.
+- **Decision**: Route automatic executions through a user-configured local command template launched
+  by the plugin backend subprocess with the workspace as its current working directory.
 - **Rationale**: The official plugin docs state that plugins cannot interact with Claude's chat
-  system directly, while the CloudCLI API docs provide a supported hosted endpoint to run Claude,
-  Codex, or Cursor agents against a chosen environment and project. That makes hosted API
-  invocation the only supported automation path currently documented.
+  system directly, but the plugin subprocess is a normal local Node process. A local command
+  adapter keeps execution fully local, works for users without CloudCLI hosted access, and can
+  target whichever agent CLI the user already runs in that environment.
 - **Alternatives considered**:
   - Calling undocumented host internals from the plugin frontend: rejected because it violates the
     documented plugin boundary and is likely to break.
-  - Spawning local agent CLIs directly from the plugin subprocess: rejected for v1 because the
-    plugin runtime does not guarantee agent credentials or a consistent self-hosted interface.
-  - Self-hosted ClaudeCodeUI full automation parity: deferred until a local execution endpoint or
-    supported adapter exists.
+  - CloudCLI hosted API execution: rejected because the user explicitly needs a local-only setup.
+  - Hard-coding a single CLI such as `claude` or `codex`: rejected because local environments vary,
+    so the execution profile should stay generic.
 
 ## Decision 3: Implement recurrence calculation in-process for the bounded v1 rule set
 

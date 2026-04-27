@@ -29,6 +29,7 @@ const snapshot: GlobalDashboardSnapshot = {
       workspacePath: "/tmp/alpha",
       workspaceLabel: "alpha",
       name: "Daily summary",
+      scheduleType: "daily",
       recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
       enabled: true,
       nextRunAt: "2099-01-01T08:00:00.000Z",
@@ -394,6 +395,50 @@ describe("global dashboard view", () => {
     expect(globalRequestCount).toBe(1);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(globalRequestCount).toBe(2);
+
+    app.unmount();
+  });
+
+  it("does not refresh the global snapshot in the background while the workspace tab is active", async () => {
+    vi.useFakeTimers();
+    let globalRequestCount = 0;
+    const api: PluginAPI = {
+      context: {
+        theme: "light",
+        project: { name: "alpha", path: "/tmp/alpha" },
+        session: null
+      },
+      onContextChange: () => () => undefined,
+      rpc: async (method, path) => {
+        if (method === "GET" && path.startsWith("/v1/global-dashboard")) {
+          globalRequestCount += 1;
+          return snapshot;
+        }
+        if (method === "GET" && path.startsWith("/v1/workspace-state")) {
+          return {
+            capability: { status: "needs_config", message: "Configure execution." },
+            executionProfile: null,
+            tasks: [],
+            runs: []
+          };
+        }
+        throw new Error(`Unexpected RPC: ${method} ${path}`);
+      }
+    };
+
+    const container = document.createElement("div");
+    const app = new WorkspaceScheduledPromptsApp(container, api);
+    await app.mount();
+
+    expect(globalRequestCount).toBe(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(globalRequestCount).toBe(1);
+
+    container.querySelectorAll<HTMLButtonElement>(".wsp-tab")[0]?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(globalRequestCount).toBe(3);
 
     app.unmount();
   });

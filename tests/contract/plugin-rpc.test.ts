@@ -178,6 +178,7 @@ describe("plugin RPC contracts", () => {
           workspacePath: "/tmp/project",
           workspaceLabel: "project",
           name: "Morning summary",
+          scheduleType: "daily",
           recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
           enabled: true,
           nextRunAt: "2026-04-28T07:00:00.000Z",

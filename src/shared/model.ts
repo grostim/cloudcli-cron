@@ -135,6 +135,7 @@ export interface GlobalJobRecord {
   workspacePath: string;
   workspaceLabel: string;
   name: string;
+  scheduleType: ScheduleType;
   recurrenceSummary: string;
   enabled: boolean;
   nextRunAt: string | null;

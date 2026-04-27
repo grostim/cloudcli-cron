@@ -190,4 +190,60 @@ describe("global dashboard aggregation", () => {
     expect(snapshot.jobs[0]?.taskId).toBe("task-failed");
     expect(snapshot.summary.problemJobs).toBe(1);
   });
+
+  it("does not classify a completed one-time schedule with no next run as a problem", async () => {
+    const workspacePath = path.join(tempHome, "workspace-d");
+    const workspaceKey = workspaceKeyFromPath(workspacePath);
+    await mkdir(workspacePath, { recursive: true });
+
+    await saveWorkspaceLedger({
+      version: 1,
+      workspaceKey,
+      workspacePath,
+      tasks: [
+        {
+          id: "task-one-time",
+          workspaceKey,
+          workspacePath,
+          name: "One-time migration",
+          prompt: "Run once",
+          recurrence: {
+            scheduleType: "one_time",
+            timezone: "Europe/Paris",
+            runAt: "2026-04-27T08:00:00.000+02:00"
+          },
+          recurrenceSummary: "Once on 2026-04-27 08:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: null,
+          lastRunStatus: "succeeded",
+          createdAt: "2026-04-27T08:00:00.000Z",
+          updatedAt: "2026-04-27T08:00:00.000Z"
+        }
+      ],
+      runs: [
+        {
+          id: "run-one-time",
+          occurrenceKey: "task-one-time:2026-04-27T06:00:00.000Z",
+          taskId: "task-one-time",
+          workspaceKey,
+          scheduledFor: "2026-04-27T06:00:00.000Z",
+          startedAt: "2026-04-27T06:00:01.000Z",
+          finishedAt: "2026-04-27T06:00:05.000Z",
+          status: "succeeded",
+          outcomeSummary: "ok",
+          failureReason: null,
+          retryOfRunId: null,
+          executionRequest: null
+        }
+      ],
+      executionProfile: null,
+      updatedAt: "2026-04-27T08:00:00.000Z"
+    });
+
+    const baseline = await buildGlobalDashboardSnapshot({ sortBy: "urgency" });
+    expect(baseline.summary.problemJobs).toBe(0);
+
+    const filtered = await buildGlobalDashboardSnapshot({ sortBy: "urgency", status: "problem" });
+    expect(filtered.jobs).toHaveLength(0);
+  });
 });

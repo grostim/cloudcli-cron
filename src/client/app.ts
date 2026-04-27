@@ -464,6 +464,9 @@ export class WorkspaceScheduledPromptsApp {
       return;
     }
     this.globalRefreshTimer = setInterval(() => {
+      if (this.state.snapshot.activeTab !== "global") {
+        return;
+      }
       void this.loadGlobalDashboard(true);
     }, GLOBAL_REFRESH_INTERVAL_MS);
   }
@@ -546,7 +549,6 @@ export class WorkspaceScheduledPromptsApp {
         successMessage: null,
         highlightedTaskId: null
       });
-      await this.loadGlobalDashboard(true);
       return true;
     } catch (error) {
       this.state.patch({

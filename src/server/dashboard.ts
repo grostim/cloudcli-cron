@@ -84,6 +84,7 @@ function buildJobRecord(
     workspacePath: ledger.workspacePath,
     workspaceLabel: ledgerRecord.workspaceLabel,
     name: task.name,
+    scheduleType: task.recurrence.scheduleType,
     recurrenceSummary: task.recurrenceSummary,
     enabled: task.enabled,
     nextRunAt: task.nextRunAt,
@@ -104,6 +105,9 @@ export function isProblemJob(job: GlobalJobRecord): boolean {
   }
   if (job.lastRunStatus === "never_run") {
     return true;
+  }
+  if (job.scheduleType === "one_time" && job.lastRunStatus === "succeeded" && !job.nextRunAt) {
+    return false;
   }
   return job.enabled && !job.nextRunAt;
 }

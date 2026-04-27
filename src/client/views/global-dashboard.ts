@@ -19,6 +19,9 @@ function statusLabel(job: GlobalJobRecord): string {
 }
 
 function isProblemJob(job: GlobalJobRecord): boolean {
+  if (job.scheduleType === "one_time" && job.lastRunStatus === "succeeded" && !job.nextRunAt) {
+    return false;
+  }
   return (
     job.workspaceAvailability !== "available" ||
     job.lastRunStatus === "failed" ||

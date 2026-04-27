@@ -881,6 +881,83 @@ describe("global dashboard view", () => {
     }
   });
 
+  it("returns post-action task state for repaired ledgers without failing the action response", async () => {
+    const tempHome = await mkdtemp(path.join(os.tmpdir(), "scheduled-prompts-global-http-repaired-"));
+    const previousHome = process.env.HOME;
+    process.env.HOME = tempHome;
+
+    let server: Awaited<ReturnType<typeof startHttpServer>> | null = null;
+
+    try {
+      const workspacePath = path.join(tempHome, "repaired");
+      await mkdir(workspacePath, { recursive: true });
+      const workspaceKey = workspaceKeyFromPath(workspacePath);
+
+      await mkdir(path.join(tempHome, ".cloudcli-workspace-scheduled-prompts"), { recursive: true });
+      await writeFile(
+        path.join(tempHome, ".cloudcli-workspace-scheduled-prompts", `${workspaceKey}.json`),
+        `${JSON.stringify(
+          {
+            version: 1,
+            workspaceKey,
+            workspacePath,
+            tasks: [
+              {
+                id: "task-repaired",
+                workspaceKey,
+                workspacePath,
+                name: "Repaired task",
+                prompt: "Run anyway",
+                recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+                recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+                enabled: true,
+                nextRunAt: "2099-01-01T08:00:00.000Z",
+                lastRunStatus: null,
+                createdAt: "2026-04-27T08:00:00.000Z",
+                updatedAt: "2026-04-27T08:00:00.000Z"
+              },
+              null
+            ],
+            runs: [],
+            executionProfile: null,
+            updatedAt: "2026-04-27T08:00:00.000Z"
+          },
+          null,
+          2
+        )}\n`,
+        "utf8"
+      );
+
+      server = await startHttpServer(new SchedulerService());
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Expected an ephemeral HTTP port.");
+      }
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+
+      const runNowResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceKey}/task-repaired/actions/run-now`, {
+        method: "POST"
+      });
+
+      expect(runNowResponse.status).toBe(202);
+      const payload = await runNowResponse.json();
+      expect(payload.task.id).toBe("task-repaired");
+      expect(payload.task.lastRunStatus).toBe("failed");
+      expect(payload.run.taskId).toBe("task-repaired");
+      expect(payload.run.status).toBe("failed");
+    } finally {
+      process.env.HOME = previousHome;
+      await new Promise<void>((resolve, reject) => {
+        if (!server) {
+          resolve();
+          return;
+        }
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+      await rm(tempHome, { recursive: true, force: true });
+    }
+  });
+
   it("routes all global actions to the correct workspace-scoped RPC endpoints", async () => {
     const actionSnapshot: GlobalDashboardSnapshot = {
       ...snapshot,

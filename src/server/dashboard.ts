@@ -294,3 +294,17 @@ export async function resolveGlobalTask(
     latestActionableRunId
   };
 }
+
+export async function readGlobalTaskState(workspaceKey: string, taskId: string): Promise<WorkspaceTask> {
+  const workspace = (await listWorkspaceLedgerRecords()).find((entry) => entry.workspaceKey === workspaceKey);
+  if (!workspace?.ledger) {
+    throw new Error("Workspace not found");
+  }
+
+  const task = workspace.ledger.tasks.find((entry) => entry.id === taskId);
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  return task;
+}

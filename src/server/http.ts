@@ -18,7 +18,7 @@ import {
   parseWorkspaceScopedRequest
 } from "../shared/contracts.js";
 import type { ExecutionCapability, ExecutionProfile } from "../shared/model.js";
-import { buildGlobalDashboardSnapshot, resolveGlobalTask } from "./dashboard.js";
+import { buildGlobalDashboardSnapshot, readGlobalTaskState, resolveGlobalTask } from "./dashboard.js";
 import { resolveExecutionCapability } from "./settings.js";
 import { SchedulerService } from "./scheduler.js";
 
@@ -52,16 +52,10 @@ function createCapability(headers: http.IncomingHttpHeaders, profile: ExecutionP
 }
 
 async function loadTaskAfterAction(
-  scheduler: SchedulerService,
-  workspacePath: string,
+  workspaceKey: string,
   taskId: string
 ) {
-  const ledger = await scheduler.refreshWorkspaceLedger(workspacePath);
-  const task = ledger.tasks.find((entry) => entry.id === taskId);
-  if (!task) {
-    throw new Error("Task not found after action");
-  }
-  return task;
+  return readGlobalTaskState(workspaceKey, taskId);
 }
 
 export function createHttpHandler(scheduler: SchedulerService): http.RequestListener {
@@ -198,7 +192,7 @@ export function createHttpHandler(scheduler: SchedulerService): http.RequestList
         switch (segments[5]) {
           case "run-now": {
             const run = await scheduler.createManualRun(taskId, target.workspacePath);
-            const task = await loadTaskAfterAction(scheduler, target.workspacePath, taskId);
+            const task = await loadTaskAfterAction(workspaceKey, taskId);
             json(response, 202, { task, run } satisfies GlobalDashboardActionResponse);
             return;
           }
@@ -218,7 +212,7 @@ export function createHttpHandler(scheduler: SchedulerService): http.RequestList
               throw new Error("runId must match the latest actionable run for this task");
             }
             const run = await scheduler.retryRun(retryRequest.runId, target.workspacePath);
-            const task = await loadTaskAfterAction(scheduler, target.workspacePath, taskId);
+            const task = await loadTaskAfterAction(workspaceKey, taskId);
             json(response, 202, { task, run } satisfies GlobalDashboardActionResponse);
             return;
           }

@@ -65,4 +65,67 @@ describe("storage", () => {
     expect(records.some((record) => record.ledger?.workspacePath === "/tmp/project")).toBe(true);
     expect(records.some((record) => record.status === "unavailable" && record.warning?.includes("Ledger could not be read"))).toBe(true);
   });
+
+  it("filters malformed task and run entries while keeping the workspace readable", async () => {
+    await mkdir("/tmp/project", { recursive: true });
+    const dataDir = path.join(tempHome, ".cloudcli-workspace-scheduled-prompts");
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(
+      path.join(dataDir, "partial.json"),
+      JSON.stringify({
+        version: 1,
+        workspaceKey: "partial",
+        workspacePath: "/tmp/project",
+        tasks: [
+          null,
+          {
+            id: "task-1",
+            workspaceKey: "partial",
+            workspacePath: "/tmp/project",
+            name: "Morning summary",
+            prompt: "Summarize",
+            recurrence: {
+              scheduleType: "daily",
+              timezone: "Europe/Paris",
+              localTime: "09:00"
+            },
+            recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: null,
+            lastRunStatus: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        runs: [
+          null,
+          {
+            id: "run-1",
+            occurrenceKey: "task-1:2026-04-27T08:00:00.000Z",
+            taskId: "task-1",
+            workspaceKey: "partial",
+            scheduledFor: "2026-04-27T08:00:00.000Z",
+            startedAt: null,
+            finishedAt: null,
+            status: "failed",
+            outcomeSummary: "failed",
+            failureReason: "failed",
+            retryOfRunId: null,
+            executionRequest: null
+          }
+        ],
+        updatedAt: new Date().toISOString()
+      }),
+      "utf8"
+    );
+
+    const records = await listWorkspaceLedgerRecords();
+    const partial = records.find((record) => record.workspaceKey === "partial");
+
+    expect(partial?.status).toBe("partial");
+    expect(partial?.ledger?.tasks).toHaveLength(1);
+    expect(partial?.ledger?.runs).toHaveLength(1);
+    expect(partial?.warning).toContain("Invalid task entries were ignored.");
+    expect(partial?.warning).toContain("Invalid run entries were ignored.");
+  });
 });

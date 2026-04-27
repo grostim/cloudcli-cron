@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { access, mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { WorkspaceAvailabilityState, WorkspaceLedger } from "../shared/model.js";
+import type { ScheduledRun, WorkspaceAvailabilityState, WorkspaceLedger, WorkspaceTask } from "../shared/model.js";
 import { normalizeWorkspacePath, projectNameFromWorkspacePath, workspaceKeyFromPath } from "../shared/workspace.js";
 
 const STORAGE_VERSION = 1;
@@ -49,6 +49,67 @@ async function readLedgerFile(filePath: string): Promise<WorkspaceLedger | null>
   }
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isTaskEntry(value: unknown): value is WorkspaceTask {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.workspaceKey === "string" &&
+    typeof value.workspacePath === "string" &&
+    typeof value.name === "string" &&
+    typeof value.prompt === "string" &&
+    isObject(value.recurrence) &&
+    typeof value.recurrenceSummary === "string" &&
+    typeof value.enabled === "boolean" &&
+    (typeof value.nextRunAt === "string" || value.nextRunAt === null) &&
+    (typeof value.lastRunStatus === "string" || value.lastRunStatus === null) &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
+function isRunEntry(value: unknown): value is ScheduledRun {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.occurrenceKey === "string" &&
+    typeof value.taskId === "string" &&
+    typeof value.workspaceKey === "string" &&
+    typeof value.scheduledFor === "string" &&
+    (typeof value.startedAt === "string" || value.startedAt === null) &&
+    (typeof value.finishedAt === "string" || value.finishedAt === null) &&
+    typeof value.status === "string" &&
+    typeof value.outcomeSummary === "string" &&
+    (typeof value.failureReason === "string" || value.failureReason === null) &&
+    (typeof value.retryOfRunId === "string" || value.retryOfRunId === null) &&
+    (isObject(value.executionRequest) || value.executionRequest === null)
+  );
+}
+
+function filterLedgerEntries<T>(
+  values: unknown,
+  guard: (value: unknown) => value is T
+): { entries: T[]; repaired: boolean } {
+  if (!Array.isArray(values)) {
+    return { entries: [], repaired: true };
+  }
+
+  const entries = values.filter(guard);
+  return {
+    entries,
+    repaired: entries.length !== values.length
+  };
+}
+
 function coerceLedgerShape(raw: unknown, fallbackWorkspaceKey: string): { ledger: WorkspaceLedger; warning: string | null } {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error("ledger JSON must be an object");
@@ -59,17 +120,23 @@ function coerceLedgerShape(raw: unknown, fallbackWorkspaceKey: string): { ledger
     throw new Error("workspacePath is missing");
   }
   const workspacePath = normalizeWorkspacePath(record.workspacePath);
-  const tasks = Array.isArray(record.tasks) ? record.tasks : [];
-  const runs = Array.isArray(record.runs) ? record.runs : [];
+  const { entries: tasks, repaired: repairedTasks } = filterLedgerEntries(record.tasks, isTaskEntry);
+  const { entries: runs, repaired: repairedRuns } = filterLedgerEntries(record.runs, isRunEntry);
   const executionProfile =
     record.executionProfile && typeof record.executionProfile === "object"
       ? (record.executionProfile as WorkspaceLedger["executionProfile"])
       : null;
 
-  const warning =
-    Array.isArray(record.tasks) && Array.isArray(record.runs)
-      ? null
-      : "Ledger metadata was partially repaired while loading.";
+  const repairNotes: string[] = [];
+  if (!Array.isArray(record.tasks) || !Array.isArray(record.runs)) {
+    repairNotes.push("Ledger metadata was partially repaired while loading.");
+  }
+  if (repairedTasks) {
+    repairNotes.push("Invalid task entries were ignored.");
+  }
+  if (repairedRuns) {
+    repairNotes.push("Invalid run entries were ignored.");
+  }
 
   return {
     ledger: {
@@ -87,7 +154,7 @@ function coerceLedgerShape(raw: unknown, fallbackWorkspaceKey: string): { ledger
           ? record.updatedAt.trim()
           : new Date().toISOString()
     },
-    warning
+    warning: repairNotes.length ? repairNotes.join(" ") : null
   };
 }
 

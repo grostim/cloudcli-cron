@@ -128,4 +128,143 @@ describe("storage", () => {
     expect(partial?.warning).toContain("Invalid task entries were ignored.");
     expect(partial?.warning).toContain("Invalid run entries were ignored.");
   });
+
+  it("rejects malformed recurrence payloads during ledger repair", async () => {
+    const dataDir = path.join(tempHome, ".cloudcli-workspace-scheduled-prompts");
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(
+      path.join(dataDir, "recurrence.json"),
+      JSON.stringify({
+        version: 1,
+        workspaceKey: "recurrence",
+        workspacePath: "/tmp/project",
+        tasks: [
+          {
+            id: "task-invalid",
+            workspaceKey: "recurrence",
+            workspacePath: "/tmp/project",
+            name: "Broken recurrence",
+            prompt: "Broken",
+            recurrence: {
+              timezone: "Europe/Paris",
+              localTime: "09:00"
+            },
+            recurrenceSummary: "Broken",
+            enabled: true,
+            nextRunAt: null,
+            lastRunStatus: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          {
+            id: "task-valid",
+            workspaceKey: "recurrence",
+            workspacePath: "/tmp/project",
+            name: "Healthy recurrence",
+            prompt: "Healthy",
+            recurrence: {
+              scheduleType: "daily",
+              timezone: "Europe/Paris",
+              localTime: "09:00"
+            },
+            recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: null,
+            lastRunStatus: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        runs: [],
+        updatedAt: new Date().toISOString()
+      }),
+      "utf8"
+    );
+
+    const records = await listWorkspaceLedgerRecords();
+    const record = records.find((entry) => entry.workspaceKey === "recurrence");
+
+    expect(record?.status).toBe("partial");
+    expect(record?.ledger?.tasks).toHaveLength(1);
+    expect(record?.ledger?.tasks[0]?.id).toBe("task-valid");
+    expect(record?.warning).toContain("Invalid task entries were ignored.");
+  });
+
+  it("uses the filename-derived workspace key when repairing copied ledgers", async () => {
+    const dataDir = path.join(tempHome, ".cloudcli-workspace-scheduled-prompts");
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(
+      path.join(dataDir, "alpha.json"),
+      JSON.stringify({
+        version: 1,
+        workspaceKey: "duplicate-key",
+        workspacePath: "/tmp/alpha",
+        tasks: [
+          {
+            id: "task-alpha",
+            workspaceKey: "duplicate-key",
+            workspacePath: "/tmp/alpha",
+            name: "Alpha task",
+            prompt: "Alpha",
+            recurrence: {
+              scheduleType: "daily",
+              timezone: "Europe/Paris",
+              localTime: "09:00"
+            },
+            recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: null,
+            lastRunStatus: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        runs: [],
+        updatedAt: new Date().toISOString()
+      }),
+      "utf8"
+    );
+    await writeFile(
+      path.join(dataDir, "beta.json"),
+      JSON.stringify({
+        version: 1,
+        workspaceKey: "duplicate-key",
+        workspacePath: "/tmp/beta",
+        tasks: [
+          {
+            id: "task-beta",
+            workspaceKey: "duplicate-key",
+            workspacePath: "/tmp/beta",
+            name: "Beta task",
+            prompt: "Beta",
+            recurrence: {
+              scheduleType: "daily",
+              timezone: "Europe/Paris",
+              localTime: "10:00"
+            },
+            recurrenceSummary: "Daily at 10:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: null,
+            lastRunStatus: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        runs: [],
+        updatedAt: new Date().toISOString()
+      }),
+      "utf8"
+    );
+
+    const records = await listWorkspaceLedgerRecords();
+    const alpha = records.find((entry) => entry.workspaceLabel === "alpha");
+    const beta = records.find((entry) => entry.workspaceLabel === "beta");
+
+    expect(alpha?.workspaceKey).toBe("alpha");
+    expect(beta?.workspaceKey).toBe("beta");
+    expect(alpha?.ledger?.workspaceKey).toBe("alpha");
+    expect(beta?.ledger?.workspaceKey).toBe("beta");
+    expect(alpha?.ledger?.tasks[0]?.workspaceKey).toBe("alpha");
+    expect(beta?.ledger?.tasks[0]?.workspaceKey).toBe("beta");
+  });
 });

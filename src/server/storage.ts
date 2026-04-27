@@ -2,8 +2,15 @@ import { constants } from "node:fs";
 import { access, mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { ScheduledRun, WorkspaceAvailabilityState, WorkspaceLedger, WorkspaceTask } from "../shared/model.js";
+import type {
+  RecurrenceDefinition,
+  ScheduledRun,
+  WorkspaceAvailabilityState,
+  WorkspaceLedger,
+  WorkspaceTask
+} from "../shared/model.js";
 import { normalizeWorkspacePath, projectNameFromWorkspacePath, workspaceKeyFromPath } from "../shared/workspace.js";
+import { validateRecurrenceDefinition } from "./recurrence.js";
 
 const STORAGE_VERSION = 1;
 const DATA_DIR_NAME = ".cloudcli-workspace-scheduled-prompts";
@@ -53,6 +60,19 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isRecurrenceDefinition(value: unknown): value is RecurrenceDefinition {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  try {
+    validateRecurrenceDefinition(value as unknown as RecurrenceDefinition);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function isTaskEntry(value: unknown): value is WorkspaceTask {
   if (!isObject(value)) {
     return false;
@@ -64,7 +84,7 @@ function isTaskEntry(value: unknown): value is WorkspaceTask {
     typeof value.workspacePath === "string" &&
     typeof value.name === "string" &&
     typeof value.prompt === "string" &&
-    isObject(value.recurrence) &&
+    isRecurrenceDefinition(value.recurrence) &&
     typeof value.recurrenceSummary === "string" &&
     typeof value.enabled === "boolean" &&
     (typeof value.nextRunAt === "string" || value.nextRunAt === null) &&
@@ -120,6 +140,7 @@ function coerceLedgerShape(raw: unknown, fallbackWorkspaceKey: string): { ledger
     throw new Error("workspacePath is missing");
   }
   const workspacePath = normalizeWorkspacePath(record.workspacePath);
+  const workspaceKey = fallbackWorkspaceKey;
   const { entries: tasks, repaired: repairedTasks } = filterLedgerEntries(record.tasks, isTaskEntry);
   const { entries: runs, repaired: repairedRuns } = filterLedgerEntries(record.runs, isRunEntry);
   const executionProfile =
@@ -137,17 +158,24 @@ function coerceLedgerShape(raw: unknown, fallbackWorkspaceKey: string): { ledger
   if (repairedRuns) {
     repairNotes.push("Invalid run entries were ignored.");
   }
+  if (typeof record.workspaceKey === "string" && record.workspaceKey.trim() && record.workspaceKey.trim() !== workspaceKey) {
+    repairNotes.push("Ledger workspace key was repaired from the filename.");
+  }
 
   return {
     ledger: {
       version: typeof record.version === "number" ? record.version : STORAGE_VERSION,
-      workspaceKey:
-        typeof record.workspaceKey === "string" && record.workspaceKey.trim()
-          ? record.workspaceKey.trim()
-          : fallbackWorkspaceKey,
+      workspaceKey,
       workspacePath,
-      tasks: tasks as WorkspaceLedger["tasks"],
-      runs: runs as WorkspaceLedger["runs"],
+      tasks: tasks.map((task) => ({
+        ...task,
+        workspaceKey,
+        workspacePath
+      })),
+      runs: runs.map((run) => ({
+        ...run,
+        workspaceKey
+      })),
       executionProfile,
       updatedAt:
         typeof record.updatedAt === "string" && record.updatedAt.trim()

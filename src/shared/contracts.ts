@@ -1,6 +1,8 @@
 import type {
   ExecutionCapability,
   ExecutionProfile,
+  GlobalDashboardFilter,
+  GlobalDashboardSnapshot,
   RecurrenceDefinition,
   ScheduledRun,
   WorkspaceTask
@@ -49,6 +51,17 @@ export interface ExecutionProfileResponse {
   executionProfile: ExecutionProfile | null;
 }
 
+export interface GlobalDashboardRetryRequest {
+  runId: string;
+}
+
+export interface GlobalDashboardActionResponse {
+  task: WorkspaceTask;
+  run?: ScheduledRun;
+}
+
+export type GlobalDashboardResponse = GlobalDashboardSnapshot;
+
 type UnknownRecord = Record<string, unknown>;
 
 function isObject(input: unknown): input is UnknownRecord {
@@ -61,6 +74,21 @@ function readRequiredString(record: UnknownRecord, key: string): string {
     throw new Error(`${key} must be a non-empty string`);
   }
   return value.trim();
+}
+
+function readOptionalEnum<T extends string>(
+  record: UnknownRecord,
+  key: string,
+  allowed: readonly T[]
+): T | undefined {
+  const value = record[key];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !allowed.includes(value as T)) {
+    throw new Error(`${key} must be one of: ${allowed.join(", ")}`);
+  }
+  return value as T;
 }
 
 function readOptionalString(record: UnknownRecord, key: string): string | undefined {
@@ -155,5 +183,41 @@ export function parseExecutionProfileRequest(body: unknown): ExecutionProfileReq
           : (() => {
               throw new Error("timeoutMs must be an integer >= 1000");
             })()
+  };
+}
+
+const GLOBAL_STATUS_FILTERS = [
+  "healthy",
+  "problem",
+  "paused",
+  "running",
+  "failed",
+  "missed",
+  "never_run"
+] as const;
+
+const GLOBAL_SORTS = ["urgency", "next_run", "workspace", "name"] as const;
+
+export function parseGlobalDashboardQuery(searchParams: URLSearchParams): GlobalDashboardFilter {
+  const raw: UnknownRecord = {
+    status: searchParams.get("status") ?? undefined,
+    workspaceKey: searchParams.get("workspaceKey") ?? undefined,
+    sortBy: searchParams.get("sortBy") ?? undefined
+  };
+
+  return {
+    status: readOptionalEnum(raw, "status", GLOBAL_STATUS_FILTERS),
+    workspaceKey: readOptionalString(raw, "workspaceKey"),
+    sortBy: readOptionalEnum(raw, "sortBy", GLOBAL_SORTS) ?? "urgency"
+  };
+}
+
+export function parseGlobalDashboardRetryRequest(body: unknown): GlobalDashboardRetryRequest {
+  if (!isObject(body)) {
+    throw new Error("request body must be an object");
+  }
+
+  return {
+    runId: readRequiredString(body, "runId")
   };
 }

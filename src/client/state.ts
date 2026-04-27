@@ -1,6 +1,16 @@
-import type { ExecutionCapability, ExecutionProfile, ScheduledRun, WorkspaceTask } from "../shared/model.js";
+import type {
+  ExecutionCapability,
+  ExecutionProfile,
+  GlobalDashboardFilter,
+  GlobalDashboardSnapshot,
+  ScheduledRun,
+  WorkspaceTask
+} from "../shared/model.js";
+
+export type AppTab = "workspace" | "global";
 
 export interface AppState {
+  activeTab: AppTab;
   workspacePath: string | null;
   tasks: WorkspaceTask[];
   runs: ScheduledRun[];
@@ -11,6 +21,10 @@ export interface AppState {
   busy: boolean;
   editingTaskId: string | null;
   highlightedTaskId: string | null;
+  globalSnapshot: GlobalDashboardSnapshot | null;
+  globalFilters: GlobalDashboardFilter;
+  globalBusy: boolean;
+  globalError: string | null;
 }
 
 export const DEFAULT_CAPABILITY: ExecutionCapability = {
@@ -22,6 +36,7 @@ type Listener = (state: AppState) => void;
 
 export class AppStateStore {
   private state: AppState = {
+    activeTab: "workspace",
     workspacePath: null,
     tasks: [],
     runs: [],
@@ -31,7 +46,11 @@ export class AppStateStore {
     successMessage: null,
     busy: false,
     editingTaskId: null,
-    highlightedTaskId: null
+    highlightedTaskId: null,
+    globalSnapshot: null,
+    globalFilters: { sortBy: "urgency" },
+    globalBusy: false,
+    globalError: null
   };
 
   private readonly listeners = new Set<Listener>();

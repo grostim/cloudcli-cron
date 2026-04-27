@@ -29,6 +29,14 @@ This is the first functional local-only version.
 - Scheduled executions launch a fresh local CLI process
 - Notifications and cross-workspace orchestration are out of scope
 
+## Global Dashboard
+
+The `v0.2.0` feature branch adds a dedicated global dashboard tab for cross-workspace visibility.
+
+- aggregated job inventory across known workspaces
+- degraded workspace warnings
+- direct operational actions from the global view
+
 ## Requirements
 
 - Node.js 18+

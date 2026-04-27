@@ -1,8 +1,8 @@
 import * as os from "node:os";
 import path from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadWorkspaceLedger, saveWorkspaceLedger } from "../../src/server/storage.js";
+import { listWorkspaceLedgerRecords, loadWorkspaceLedger, saveWorkspaceLedger } from "../../src/server/storage.js";
 
 describe("storage", () => {
   let tempHome: string;
@@ -50,5 +50,19 @@ describe("storage", () => {
     const reloaded = await loadWorkspaceLedger("/tmp/project");
     expect(reloaded.tasks).toHaveLength(1);
     expect(reloaded.tasks[0]?.name).toBe("Morning summary");
+  });
+
+  it("reports unreadable ledgers without dropping readable ones", async () => {
+    const ledger = await loadWorkspaceLedger("/tmp/project");
+    await saveWorkspaceLedger(ledger);
+
+    const dataDir = path.join(tempHome, ".cloudcli-workspace-scheduled-prompts");
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(path.join(dataDir, "broken.json"), "{invalid", "utf8");
+
+    const records = await listWorkspaceLedgerRecords();
+    expect(records).toHaveLength(2);
+    expect(records.some((record) => record.ledger?.workspacePath === "/tmp/project")).toBe(true);
+    expect(records.some((record) => record.status === "unavailable" && record.warning?.includes("Ledger could not be read"))).toBe(true);
   });
 });

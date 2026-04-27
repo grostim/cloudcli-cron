@@ -17,9 +17,9 @@
 
 **Purpose**: Prepare the plugin codebase and test harness for a second top-level dashboard surface.
 
-- [ ] T001 Add global dashboard documentation placeholders and release notes anchors in `README.md` and `specs/002-global-job-dashboard/quickstart.md`
-- [ ] T002 [P] Extend test file scaffolding for dashboard coverage in `tests/integration/global-dashboard.test.ts` and `tests/unit/dashboard.test.ts`
-- [ ] T003 [P] Reserve source file entry points for global aggregation and rendering in `src/server/dashboard.ts` and `src/client/views/global-dashboard.ts`
+- [X] T001 Add global dashboard documentation placeholders and release notes anchors in `README.md` and `specs/002-global-job-dashboard/quickstart.md`
+- [X] T002 [P] Extend test file scaffolding for dashboard coverage in `tests/integration/global-dashboard.test.ts` and `tests/unit/dashboard.test.ts`
+- [X] T003 [P] Reserve source file entry points for global aggregation and rendering in `src/server/dashboard.ts` and `src/client/views/global-dashboard.ts`
 
 ---
 
@@ -29,14 +29,14 @@
 
 **⚠️ CRITICAL**: No user story work should start until this phase is complete.
 
-- [ ] T004 Define global dashboard shared types and RPC payloads in `src/shared/model.ts` and `src/shared/contracts.ts`
-- [ ] T005 [P] Implement tolerant workspace-ledger enumeration and degraded workspace metadata in `src/server/storage.ts`
-- [ ] T006 [P] Implement server-side dashboard aggregation primitives in `src/server/dashboard.ts`
-- [ ] T007 Implement global dashboard endpoints and cross-workspace action routing in `src/server/http.ts`
-- [ ] T008 [P] Implement frontend RPC client helpers for global snapshot and global actions in `src/client/api.ts`
-- [ ] T009 [P] Extend frontend state to track global snapshot, filters, refresh state, and active tab in `src/client/state.ts`
-- [ ] T010 Add contract baseline coverage for global dashboard payload schemas in `tests/contract/plugin-rpc.test.ts`
-- [ ] T011 Add unit coverage for tolerant aggregation and degraded workspace classification in `tests/unit/dashboard.test.ts` and `tests/unit/storage.test.ts`
+- [X] T004 Define global dashboard shared types and RPC payloads in `src/shared/model.ts` and `src/shared/contracts.ts`
+- [X] T005 [P] Implement tolerant workspace-ledger enumeration and degraded workspace metadata in `src/server/storage.ts`
+- [X] T006 [P] Implement server-side dashboard aggregation primitives in `src/server/dashboard.ts`
+- [X] T007 Implement global dashboard endpoints and cross-workspace action routing in `src/server/http.ts`
+- [X] T008 [P] Implement frontend RPC client helpers for global snapshot and global actions in `src/client/api.ts`
+- [X] T009 [P] Extend frontend state to track global snapshot, filters, refresh state, and active tab in `src/client/state.ts`
+- [X] T010 Add contract baseline coverage for global dashboard payload schemas in `tests/contract/plugin-rpc.test.ts`
+- [X] T011 Add unit coverage for tolerant aggregation and degraded workspace classification in `tests/unit/dashboard.test.ts` and `tests/unit/storage.test.ts`
 
 **Checkpoint**: Foundation ready. User story implementation can begin.
 
@@ -50,16 +50,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Extend contract tests for `GET /v1/global-dashboard` snapshot fields in `tests/contract/plugin-rpc.test.ts`
-- [ ] T013 [P] [US1] Add integration coverage for multi-workspace aggregation and periodic refresh semantics in `tests/integration/global-dashboard.test.ts`
-- [ ] T014 [P] [US1] Add frontend jsdom coverage for the dedicated global tab, empty state, and aggregated list rendering in `tests/integration/global-dashboard.test.ts`
+- [X] T012 [P] [US1] Extend contract tests for `GET /v1/global-dashboard` snapshot fields in `tests/contract/plugin-rpc.test.ts`
+- [X] T013 [P] [US1] Add integration coverage for multi-workspace aggregation and periodic refresh semantics in `tests/integration/global-dashboard.test.ts`
+- [X] T014 [P] [US1] Add frontend jsdom coverage for the dedicated global tab, empty state, and aggregated list rendering in `tests/integration/global-dashboard.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T015 [P] [US1] Implement snapshot assembly, workspace labels, and `never_run` derivation in `src/server/dashboard.ts`
-- [ ] T016 [P] [US1] Build the global dashboard list view with loading, empty, and partial-data shells in `src/client/views/global-dashboard.ts`
-- [ ] T017 [P] [US1] Add dedicated global-tab layout, refresh timer wiring, and manual refresh control in `src/client/app.ts`
-- [ ] T018 [US1] Wire global snapshot load, auto-refresh cadence, and tab switching in `src/index.ts`, `src/client/app.ts`, and `src/client/state.ts`
+- [X] T015 [P] [US1] Implement snapshot assembly, workspace labels, and `never_run` derivation in `src/server/dashboard.ts`
+- [X] T016 [P] [US1] Build the global dashboard list view with loading, empty, and partial-data shells in `src/client/views/global-dashboard.ts`
+- [X] T017 [P] [US1] Add dedicated global-tab layout, refresh timer wiring, and manual refresh control in `src/client/app.ts`
+- [X] T018 [US1] Wire global snapshot load, auto-refresh cadence, and tab switching in `src/index.ts`, `src/client/app.ts`, and `src/client/state.ts`
 
 **Checkpoint**: User Story 1 is fully functional and independently testable.
 

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   parseCreateTaskRequest,
   parseExecutionProfileRequest,
+  type GlobalDashboardResponse,
+  parseGlobalDashboardQuery,
+  parseGlobalDashboardRetryRequest,
   parseUpdateTaskRequest,
   parseWorkspaceScopedRequest
 } from "../../src/shared/contracts.js";
@@ -124,5 +127,83 @@ describe("plugin RPC contracts", () => {
     });
 
     expect(profile?.args).toEqual(["-a", "never", "exec", "--skip-git-repo-check", "--sandbox", "workspace-write"]);
+  });
+
+  it("parses global dashboard query filters", () => {
+    const query = parseGlobalDashboardQuery(
+      new URLSearchParams({
+        status: "problem",
+        workspaceKey: "workspace-1",
+        sortBy: "workspace"
+      })
+    );
+
+    expect(query).toEqual({
+      status: "problem",
+      workspaceKey: "workspace-1",
+      sortBy: "workspace"
+    });
+  });
+
+  it("defaults global dashboard sorting to urgency", () => {
+    const query = parseGlobalDashboardQuery(new URLSearchParams());
+    expect(query.sortBy).toBe("urgency");
+  });
+
+  it("rejects invalid global dashboard query values", () => {
+    expect(() => parseGlobalDashboardQuery(new URLSearchParams({ status: "broken" }))).toThrow(
+      "status must be one of: healthy, problem, paused, running, failed, missed, never_run"
+    );
+  });
+
+  it("parses global retry payloads", () => {
+    expect(parseGlobalDashboardRetryRequest({ runId: "run-1" })).toEqual({ runId: "run-1" });
+  });
+
+  it("captures the global dashboard response baseline fields", () => {
+    const response: GlobalDashboardResponse = {
+      generatedAt: "2026-04-27T08:00:00.000Z",
+      summary: {
+        totalJobs: 1,
+        activeJobs: 1,
+        pausedJobs: 0,
+        problemJobs: 1,
+        workspacesTotal: 1,
+        workspacesDegraded: 0
+      },
+      jobs: [
+        {
+          taskId: "task-1",
+          workspaceKey: "workspace-1",
+          workspacePath: "/tmp/project",
+          workspaceLabel: "project",
+          name: "Morning summary",
+          recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: "2026-04-28T07:00:00.000Z",
+          lastRunStatus: "never_run",
+          lastRunFinishedAt: null,
+          latestActionableRunId: null,
+          workspaceAvailability: "available",
+          availableActions: ["run_now", "pause"]
+        }
+      ],
+      workspaces: [
+        {
+          workspaceKey: "workspace-1",
+          workspacePath: "/tmp/project",
+          workspaceLabel: "project",
+          status: "available",
+          jobCount: 1,
+          warning: null
+        }
+      ],
+      partialData: false,
+      warnings: []
+    };
+
+    expect(response.jobs[0]?.workspaceLabel).toBe("project");
+    expect(response.summary.totalJobs).toBe(1);
+    expect(response.partialData).toBe(false);
   });
 });

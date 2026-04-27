@@ -1,0 +1,193 @@
+import * as os from "node:os";
+import path from "node:path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildGlobalDashboardSnapshot } from "../../src/server/dashboard.js";
+import { saveWorkspaceLedger } from "../../src/server/storage.js";
+import { workspaceKeyFromPath } from "../../src/shared/workspace.js";
+
+describe("global dashboard aggregation", () => {
+  let tempHome: string;
+  let previousHome: string | undefined;
+
+  beforeEach(async () => {
+    tempHome = await mkdtemp(path.join(os.tmpdir(), "scheduled-prompts-dashboard-"));
+    previousHome = process.env.HOME;
+    process.env.HOME = tempHome;
+  });
+
+  afterEach(async () => {
+    process.env.HOME = previousHome;
+    await rm(tempHome, { recursive: true, force: true });
+  });
+
+  it("builds an aggregated snapshot with degraded workspace warnings", async () => {
+    const workspacePath = path.join(tempHome, "workspace-a");
+    const workspaceKey = workspaceKeyFromPath(workspacePath);
+    await mkdir(workspacePath, { recursive: true });
+
+    await saveWorkspaceLedger({
+      version: 1,
+      workspaceKey,
+      workspacePath,
+      tasks: [
+        {
+          id: "task-1",
+          workspaceKey,
+          workspacePath,
+          name: "Daily summary",
+          prompt: "Summarize",
+          recurrence: {
+            scheduleType: "daily",
+            timezone: "Europe/Paris",
+            localTime: "09:00"
+          },
+          recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: "2099-01-01T08:00:00.000Z",
+          lastRunStatus: "failed",
+          createdAt: "2026-04-27T08:00:00.000Z",
+          updatedAt: "2026-04-27T08:00:00.000Z"
+        }
+      ],
+      runs: [
+        {
+          id: "run-1",
+          occurrenceKey: "task-1:2026-04-27T08:00:00.000Z",
+          taskId: "task-1",
+          workspaceKey,
+          scheduledFor: "2026-04-27T08:00:00.000Z",
+          startedAt: "2026-04-27T08:00:01.000Z",
+          finishedAt: "2026-04-27T08:00:10.000Z",
+          status: "failed",
+          outcomeSummary: "Command exited with code 1",
+          failureReason: "Command exited with code 1",
+          retryOfRunId: null,
+          executionRequest: null
+        }
+      ],
+      executionProfile: null,
+      updatedAt: "2026-04-27T08:00:00.000Z"
+    });
+
+    const corruptKey = "corruptedworkspace";
+    await writeFile(
+      path.join(tempHome, ".cloudcli-workspace-scheduled-prompts", `${corruptKey}.json`),
+      "{broken",
+      "utf8"
+    );
+
+    const snapshot = await buildGlobalDashboardSnapshot({ sortBy: "urgency" });
+
+    expect(snapshot.jobs).toHaveLength(1);
+    expect(snapshot.jobs[0]?.workspaceKey).toBe(workspaceKey);
+    expect(snapshot.jobs[0]?.lastRunStatus).toBe("failed");
+    expect(snapshot.jobs[0]?.latestActionableRunId).toBe("run-1");
+    expect(snapshot.partialData).toBe(true);
+    expect(snapshot.workspaces.some((workspace) => workspace.workspaceKey === corruptKey)).toBe(true);
+    expect(snapshot.warnings.some((warning) => warning.includes("Ledger could not be read"))).toBe(true);
+  });
+
+  it("applies problem filtering and urgency ordering", async () => {
+    const firstWorkspacePath = path.join(tempHome, "workspace-b");
+    const secondWorkspacePath = path.join(tempHome, "workspace-c");
+    const firstKey = workspaceKeyFromPath(firstWorkspacePath);
+    const secondKey = workspaceKeyFromPath(secondWorkspacePath);
+    await mkdir(firstWorkspacePath, { recursive: true });
+    await mkdir(secondWorkspacePath, { recursive: true });
+
+    await saveWorkspaceLedger({
+      version: 1,
+      workspaceKey: firstKey,
+      workspacePath: firstWorkspacePath,
+      tasks: [
+        {
+          id: "task-failed",
+          workspaceKey: firstKey,
+          workspacePath: firstWorkspacePath,
+          name: "Broken task",
+          prompt: "Fail",
+          recurrence: {
+            scheduleType: "daily",
+            timezone: "Europe/Paris",
+            localTime: "09:00"
+          },
+          recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: "2099-01-01T08:00:00.000Z",
+          lastRunStatus: "failed",
+          createdAt: "2026-04-27T08:00:00.000Z",
+          updatedAt: "2026-04-27T08:00:00.000Z"
+        }
+      ],
+      runs: [
+        {
+          id: "run-failed",
+          occurrenceKey: "task-failed:2026-04-27T08:00:00.000Z",
+          taskId: "task-failed",
+          workspaceKey: firstKey,
+          scheduledFor: "2026-04-27T08:00:00.000Z",
+          startedAt: "2026-04-27T08:00:01.000Z",
+          finishedAt: "2026-04-27T08:00:10.000Z",
+          status: "failed",
+          outcomeSummary: "failed",
+          failureReason: "failed",
+          retryOfRunId: null,
+          executionRequest: null
+        }
+      ],
+      executionProfile: null,
+      updatedAt: "2026-04-27T08:00:00.000Z"
+    });
+
+    await saveWorkspaceLedger({
+      version: 1,
+      workspaceKey: secondKey,
+      workspacePath: secondWorkspacePath,
+      tasks: [
+        {
+          id: "task-healthy",
+          workspaceKey: secondKey,
+          workspacePath: secondWorkspacePath,
+          name: "Healthy task",
+          prompt: "Pass",
+          recurrence: {
+            scheduleType: "daily",
+            timezone: "Europe/Paris",
+            localTime: "09:00"
+          },
+          recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: "2099-01-01T08:00:00.000Z",
+          lastRunStatus: "succeeded",
+          createdAt: "2026-04-27T08:00:00.000Z",
+          updatedAt: "2026-04-27T08:00:00.000Z"
+        }
+      ],
+      runs: [
+        {
+          id: "run-succeeded",
+          occurrenceKey: "task-healthy:2026-04-27T08:00:00.000Z",
+          taskId: "task-healthy",
+          workspaceKey: secondKey,
+          scheduledFor: "2026-04-27T08:00:00.000Z",
+          startedAt: "2026-04-27T08:00:01.000Z",
+          finishedAt: "2026-04-27T08:00:10.000Z",
+          status: "succeeded",
+          outcomeSummary: "ok",
+          failureReason: null,
+          retryOfRunId: null,
+          executionRequest: null
+        }
+      ],
+      executionProfile: null,
+      updatedAt: "2026-04-27T08:00:00.000Z"
+    });
+
+    const snapshot = await buildGlobalDashboardSnapshot({ sortBy: "urgency", status: "problem" });
+
+    expect(snapshot.jobs).toHaveLength(1);
+    expect(snapshot.jobs[0]?.taskId).toBe("task-failed");
+    expect(snapshot.summary.problemJobs).toBe(1);
+  });
+});

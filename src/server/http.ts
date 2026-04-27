@@ -1,6 +1,9 @@
 import http from "node:http";
 import { URL } from "node:url";
 import type {
+  GlobalDashboardActionResponse,
+  GlobalDashboardResponse,
+  GlobalDashboardRetryRequest,
   ExecutionProfileResponse,
   RunResponse,
   TaskResponse,
@@ -9,10 +12,13 @@ import type {
 import {
   parseCreateTaskRequest,
   parseExecutionProfileRequest,
+  parseGlobalDashboardQuery,
+  parseGlobalDashboardRetryRequest,
   parseUpdateTaskRequest,
   parseWorkspaceScopedRequest
 } from "../shared/contracts.js";
 import type { ExecutionCapability, ExecutionProfile } from "../shared/model.js";
+import { buildGlobalDashboardSnapshot, resolveGlobalTask } from "./dashboard.js";
 import { resolveExecutionCapability } from "./settings.js";
 import { SchedulerService } from "./scheduler.js";
 
@@ -69,6 +75,14 @@ export function createHttpHandler(scheduler: SchedulerService): http.RequestList
         const ledger = await scheduler.refreshWorkspaceLedger(workspacePath);
         const capability = createCapability(request.headers, ledger.executionProfile);
         const payload: WorkspaceStateResponse = await scheduler.loadWorkspaceState(workspacePath, capability);
+        json(response, 200, payload);
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/v1/global-dashboard") {
+        const payload: GlobalDashboardResponse = await buildGlobalDashboardSnapshot(
+          parseGlobalDashboardQuery(url.searchParams)
+        );
         json(response, 200, payload);
         return;
       }
@@ -153,6 +167,49 @@ export function createHttpHandler(scheduler: SchedulerService): http.RequestList
         const run = await scheduler.retryRun(segments[2], scoped.workspacePath);
         json(response, 202, { run } satisfies RunResponse);
         return;
+      }
+
+      if (
+        segments[0] === "v1" &&
+        segments[1] === "global-jobs" &&
+        segments[2] &&
+        segments[3] &&
+        request.method === "POST" &&
+        segments[4] === "actions" &&
+        segments[5]
+      ) {
+        const workspaceKey = segments[2];
+        const taskId = segments[3];
+        const target = await resolveGlobalTask(workspaceKey, taskId);
+
+        switch (segments[5]) {
+          case "run-now": {
+            const run = await scheduler.createManualRun(taskId, target.workspacePath);
+            json(response, 202, { task: target.task, run } satisfies GlobalDashboardActionResponse);
+            return;
+          }
+          case "pause": {
+            const task = await scheduler.pauseTask(taskId, target.workspacePath);
+            json(response, 200, { task } satisfies GlobalDashboardActionResponse);
+            return;
+          }
+          case "resume": {
+            const task = await scheduler.resumeTask(taskId, target.workspacePath);
+            json(response, 200, { task } satisfies GlobalDashboardActionResponse);
+            return;
+          }
+          case "retry": {
+            const retryRequest: GlobalDashboardRetryRequest = parseGlobalDashboardRetryRequest(await readJsonBody(request));
+            if (target.latestActionableRunId !== retryRequest.runId) {
+              throw new Error("runId must match the latest actionable run for this task");
+            }
+            const run = await scheduler.retryRun(retryRequest.runId, target.workspacePath);
+            json(response, 202, { task: target.task, run } satisfies GlobalDashboardActionResponse);
+            return;
+          }
+          default:
+            break;
+        }
       }
 
       json(response, 404, { error: "Route not found" });

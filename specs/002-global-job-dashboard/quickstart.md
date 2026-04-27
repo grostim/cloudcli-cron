@@ -1,5 +1,9 @@
 # Quickstart: Global Job Dashboard
 
+## Documentation anchor
+
+- `README.md` should expose a `Global Dashboard` section while this feature is in progress.
+
 ## Prerequisites
 
 - Node.js 18+ available locally

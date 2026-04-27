@@ -261,6 +261,47 @@ describe("global dashboard aggregation", () => {
     expect(snapshot.jobs[0]?.availableActions).toEqual(["run_now", "pause"]);
   });
 
+  it("falls back to the persisted task status when matching run history has been trimmed", async () => {
+    const workspacePath = path.join(tempHome, "workspace-trimmed-status");
+    const workspaceKey = workspaceKeyFromPath(workspacePath);
+    await mkdir(workspacePath, { recursive: true });
+
+    await saveWorkspaceLedger({
+      version: 1,
+      workspaceKey,
+      workspacePath,
+      tasks: [
+        {
+          id: "task-trimmed",
+          workspaceKey,
+          workspacePath,
+          name: "Trimmed history task",
+          prompt: "Keep last status",
+          recurrence: {
+            scheduleType: "daily",
+            timezone: "Europe/Paris",
+            localTime: "09:00"
+          },
+          recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: "2099-01-01T08:00:00.000Z",
+          lastRunStatus: "failed",
+          createdAt: "2026-04-27T08:00:00.000Z",
+          updatedAt: "2026-04-27T08:00:00.000Z"
+        }
+      ],
+      runs: [],
+      executionProfile: null,
+      updatedAt: "2026-04-27T08:00:00.000Z"
+    });
+
+    const snapshot = await buildGlobalDashboardSnapshot({ sortBy: "urgency" });
+
+    expect(snapshot.jobs).toHaveLength(1);
+    expect(snapshot.jobs[0]?.lastRunStatus).toBe("failed");
+    expect(snapshot.summary.problemJobs).toBe(1);
+  });
+
   it("does not classify a completed one-time schedule with no next run as a problem", async () => {
     const workspacePath = path.join(tempHome, "workspace-d");
     const workspaceKey = workspaceKeyFromPath(workspacePath);

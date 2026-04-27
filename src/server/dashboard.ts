@@ -26,6 +26,18 @@ function latestRunsByTaskId(runs: ScheduledRun[]): Map<string, ScheduledRun[]> {
   return grouped;
 }
 
+function storedTaskStatus(task: WorkspaceTask): GlobalJobRunStatus {
+  switch (task.lastRunStatus) {
+    case "running":
+    case "succeeded":
+    case "failed":
+    case "missed":
+      return task.lastRunStatus;
+    default:
+      return "never_run";
+  }
+}
+
 function deriveTaskStatus(
   task: WorkspaceTask,
   runs: ScheduledRun[],
@@ -37,7 +49,7 @@ function deriveTaskStatus(
 
   const latest = runs[0];
   if (!latest) {
-    return "never_run";
+    return storedTaskStatus(task);
   }
 
   if (workspaceAvailability !== "available" && latest.status === "succeeded") {
@@ -51,7 +63,7 @@ function deriveTaskStatus(
     case "missed":
       return latest.status;
     default:
-      return "never_run";
+      return storedTaskStatus(task);
   }
 }
 

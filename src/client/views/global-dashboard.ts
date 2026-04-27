@@ -24,11 +24,13 @@ function statusLabel(job: GlobalJobRecord): string {
 }
 
 function isProblemJob(job: GlobalJobRecord): boolean {
+  if (job.workspaceAvailability !== "available") {
+    return true;
+  }
   if (job.scheduleType === "one_time" && job.lastRunStatus === "succeeded" && !job.nextRunAt) {
     return false;
   }
   return (
-    job.workspaceAvailability !== "available" ||
     job.lastRunStatus === "failed" ||
     job.lastRunStatus === "missed" ||
     job.lastRunStatus === "paused" ||
@@ -256,7 +258,7 @@ export function renderGlobalDashboard(
       button.type = "button";
       button.dataset.action = action;
       button.textContent = isPending ? "Working..." : actionButtonLabel(action);
-      button.disabled = busy || isPending || job.workspaceAvailability !== "available";
+      button.disabled = busy || isPending || job.workspaceAvailability === "unavailable";
       if (action === "retry" && !job.latestActionableRunId) {
         button.disabled = true;
       }

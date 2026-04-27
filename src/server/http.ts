@@ -51,6 +51,19 @@ function createCapability(headers: http.IncomingHttpHeaders, profile: ExecutionP
   return resolveExecutionCapability(profile ?? null);
 }
 
+async function loadTaskAfterAction(
+  scheduler: SchedulerService,
+  workspacePath: string,
+  taskId: string
+) {
+  const ledger = await scheduler.refreshWorkspaceLedger(workspacePath);
+  const task = ledger.tasks.find((entry) => entry.id === taskId);
+  if (!task) {
+    throw new Error("Task not found after action");
+  }
+  return task;
+}
+
 export function createHttpHandler(scheduler: SchedulerService): http.RequestListener {
   return async (request, response) => {
     try {
@@ -185,7 +198,8 @@ export function createHttpHandler(scheduler: SchedulerService): http.RequestList
         switch (segments[5]) {
           case "run-now": {
             const run = await scheduler.createManualRun(taskId, target.workspacePath);
-            json(response, 202, { task: target.task, run } satisfies GlobalDashboardActionResponse);
+            const task = await loadTaskAfterAction(scheduler, target.workspacePath, taskId);
+            json(response, 202, { task, run } satisfies GlobalDashboardActionResponse);
             return;
           }
           case "pause": {
@@ -204,7 +218,8 @@ export function createHttpHandler(scheduler: SchedulerService): http.RequestList
               throw new Error("runId must match the latest actionable run for this task");
             }
             const run = await scheduler.retryRun(retryRequest.runId, target.workspacePath);
-            json(response, 202, { task: target.task, run } satisfies GlobalDashboardActionResponse);
+            const task = await loadTaskAfterAction(scheduler, target.workspacePath, taskId);
+            json(response, 202, { task, run } satisfies GlobalDashboardActionResponse);
             return;
           }
           default:

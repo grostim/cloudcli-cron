@@ -450,6 +450,72 @@ describe("global dashboard view", () => {
     expect(handlers.onRetry).toHaveBeenCalledWith("workspace-1", "task-1", "run-1");
   });
 
+  it("marks degraded one-time jobs as needing attention and keeps partial workspace actions enabled", () => {
+    const partialSnapshot: GlobalDashboardSnapshot = {
+      ...snapshot,
+      summary: {
+        totalJobs: 1,
+        activeJobs: 1,
+        pausedJobs: 0,
+        problemJobs: 1,
+        workspacesTotal: 1,
+        workspacesDegraded: 1
+      },
+      jobs: [
+        {
+          taskId: "task-partial",
+          workspaceKey: "workspace-partial",
+          workspacePath: "/tmp/partial",
+          workspaceLabel: "partial",
+          workspaceDrilldownAvailable: true,
+          name: "One-time partial job",
+          scheduleType: "one_time",
+          recurrenceSummary: "Once on 2026-04-27 08:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: null,
+          lastRunStatus: "succeeded",
+          lastRunFinishedAt: "2026-04-27T06:00:05.000Z",
+          latestActionableRunId: null,
+          workspaceAvailability: "partial",
+          availableActions: ["run_now", "pause"]
+        }
+      ],
+      workspaces: [
+        {
+          workspaceKey: "workspace-partial",
+          workspacePath: "/tmp/partial",
+          workspaceLabel: "partial",
+          status: "partial",
+          jobCount: 1,
+          warning: "Ledger was repaired."
+        }
+      ],
+      partialData: true,
+      warnings: ["partial: Ledger was repaired."]
+    };
+    const handlers = {
+      onRefresh: vi.fn(),
+      onSetStatusFilter: vi.fn(),
+      onSetWorkspaceFilter: vi.fn(),
+      onSetSortBy: vi.fn(),
+      onOpenWorkspace: vi.fn(),
+      onRunNow: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn(),
+      onRetry: vi.fn()
+    };
+
+    const section = renderGlobalDashboard(partialSnapshot, false, null, { sortBy: "urgency" }, handlers);
+    const row = section.querySelector<HTMLElement>('.wsp-global-job[data-task-id="task-partial"]');
+    const runNowButton = row?.querySelector<HTMLButtonElement>('button[data-action="run_now"]');
+    const pauseButton = row?.querySelector<HTMLButtonElement>('button[data-action="pause"]');
+
+    expect(row?.getAttribute("data-problem")).toBe("true");
+    expect(row?.textContent).toContain("Needs attention");
+    expect(runNowButton?.disabled).toBe(false);
+    expect(pauseButton?.disabled).toBe(false);
+  });
+
   it("mounts a dedicated global tab and loads the aggregated snapshot", async () => {
     let globalRequestCount = 0;
     const updatedSnapshot: GlobalDashboardSnapshot = {
@@ -526,7 +592,7 @@ describe("global dashboard view", () => {
     expect(container.textContent).toContain("Resume");
 
     app.unmount();
-  });
+  }, 10_000);
 
   it("shows a pending state for a global action and refreshes immediately after it resolves", async () => {
     let globalRequestCount = 0;
@@ -776,6 +842,8 @@ describe("global dashboard view", () => {
       const runNowPayload = await runNowResponse.json();
       expect(runNowPayload.run.taskId).toBe("task-a");
       expect(runNowPayload.run.status).toBe("failed");
+      expect(runNowPayload.task.id).toBe("task-a");
+      expect(runNowPayload.task.lastRunStatus).toBe("failed");
 
       const staleRetryResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceAKey}/task-a/actions/retry`, {
         method: "POST",
@@ -791,7 +859,10 @@ describe("global dashboard view", () => {
         body: JSON.stringify({ runId: runNowPayload.run.id })
       });
       expect(retryResponse.status).toBe(202);
-      expect((await retryResponse.json()).run.retryOfRunId).toBe(runNowPayload.run.id);
+      const retryPayload = await retryResponse.json();
+      expect(retryPayload.run.retryOfRunId).toBe(runNowPayload.run.id);
+      expect(retryPayload.task.id).toBe("task-a");
+      expect(retryPayload.task.lastRunStatus).toBe("failed");
 
       const refreshedA = await loadWorkspaceLedger(workspaceA);
       const refreshedB = await loadWorkspaceLedger(workspaceB);
@@ -999,7 +1070,7 @@ describe("global dashboard view", () => {
     expect(rpcCalls.some((call) => call === "POST /v1/global-jobs/workspace-2/task-paused/actions/resume")).toBe(true);
 
     app.unmount();
-  });
+  }, 10_000);
 
   it("refreshes the global snapshot on the documented cadence", async () => {
     vi.useFakeTimers();

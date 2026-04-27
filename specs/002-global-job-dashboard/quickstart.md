@@ -68,6 +68,9 @@ npm test
 4. Choose a job whose latest actionable run is failed or missed and trigger `Retry`.
 5. Confirm each action applies to the correct workspace-scoped job without opening its workspace
    first.
+6. Choose any visible job and trigger `Open Workspace`.
+7. Confirm the plugin switches to the matching workspace-scoped view and keeps the selected job
+   easy to find.
 
 ### Verify degraded workspace handling
 
@@ -83,3 +86,9 @@ npm test
 2. Change the state of a job through a workspace action or let a scheduled run complete.
 3. Confirm the dashboard updates automatically within 60 seconds.
 4. Confirm a manual refresh control is also available and updates the snapshot immediately.
+
+## Validation notes
+
+- The direct global action flow, workspace drilldown, and degraded workspace warnings are part of
+  the current implementation.
+- No additional quickstart steps were required beyond the scenarios above.

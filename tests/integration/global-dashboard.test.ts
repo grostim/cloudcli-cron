@@ -2,10 +2,12 @@
 
 import * as os from "node:os";
 import path from "node:path";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildGlobalDashboardSnapshot } from "../../src/server/dashboard.js";
-import { saveWorkspaceLedger } from "../../src/server/storage.js";
+import { startHttpServer } from "../../src/server/http.js";
+import { SchedulerService } from "../../src/server/scheduler.js";
+import { loadWorkspaceLedger, saveWorkspaceLedger } from "../../src/server/storage.js";
 import { WorkspaceScheduledPromptsApp } from "../../src/client/app.js";
 import { renderGlobalDashboard } from "../../src/client/views/global-dashboard.js";
 import type { GlobalDashboardSnapshot } from "../../src/shared/model.js";
@@ -37,6 +39,7 @@ const snapshot: GlobalDashboardSnapshot = {
       lastRunFinishedAt: "2026-04-27T07:00:00.000Z",
       latestActionableRunId: "run-1",
       workspaceAvailability: "available",
+      workspaceDrilldownAvailable: true,
       availableActions: ["run_now", "pause", "retry"]
     }
   ],
@@ -261,7 +264,12 @@ describe("global dashboard view", () => {
         onRefresh,
         onSetStatusFilter: vi.fn(),
         onSetWorkspaceFilter: vi.fn(),
-        onSetSortBy: vi.fn()
+        onSetSortBy: vi.fn(),
+        onOpenWorkspace: vi.fn(),
+        onRunNow: vi.fn(),
+        onPause: vi.fn(),
+        onResume: vi.fn(),
+        onRetry: vi.fn()
       }
     );
 
@@ -280,7 +288,12 @@ describe("global dashboard view", () => {
       onRefresh: vi.fn(),
       onSetStatusFilter: vi.fn(),
       onSetWorkspaceFilter: vi.fn(),
-      onSetSortBy: vi.fn()
+      onSetSortBy: vi.fn(),
+      onOpenWorkspace: vi.fn(),
+      onRunNow: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn(),
+      onRetry: vi.fn()
     };
     const section = renderGlobalDashboard(
       snapshot,
@@ -306,13 +319,81 @@ describe("global dashboard view", () => {
     expect(section.textContent).toContain("Workspace path is unavailable.");
   });
 
+  it("surfaces unreadable ledgers as partial dashboard data", async () => {
+    const tempHome = await mkdtemp(path.join(os.tmpdir(), "scheduled-prompts-global-unreadable-"));
+    const previousHome = process.env.HOME;
+    process.env.HOME = tempHome;
+
+    try {
+      const dataDir = path.join(tempHome, ".cloudcli-workspace-scheduled-prompts");
+      await mkdir(dataDir, { recursive: true });
+      await rm(path.join(tempHome, "missing-workspace"), { recursive: true, force: true });
+      await saveWorkspaceLedger({
+        version: 1,
+        workspaceKey: "workspace-keep",
+        workspacePath: path.join(tempHome, "workspace-keep"),
+        tasks: [
+          {
+            id: "task-keep",
+            workspaceKey: "workspace-keep",
+            workspacePath: path.join(tempHome, "workspace-keep"),
+            name: "Keep visible",
+            prompt: "Keep visible",
+            recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+            recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: "2099-01-01T08:00:00.000Z",
+            lastRunStatus: "succeeded",
+            createdAt: "2026-04-27T08:00:00.000Z",
+            updatedAt: "2026-04-27T08:00:00.000Z"
+          }
+        ],
+        runs: [],
+        executionProfile: null,
+        updatedAt: "2026-04-27T08:00:00.000Z"
+      });
+      await rm(path.join(tempHome, "workspace-keep"), { recursive: true, force: true });
+      await writeFile(path.join(dataDir, "broken.json"), "{invalid", "utf8");
+
+      const generated = await buildGlobalDashboardSnapshot({ sortBy: "urgency" });
+      const section = renderGlobalDashboard(generated, false, null, { sortBy: "urgency" }, {
+        onRefresh: vi.fn(),
+        onSetStatusFilter: vi.fn(),
+        onSetWorkspaceFilter: vi.fn(),
+        onSetSortBy: vi.fn(),
+        onOpenWorkspace: vi.fn(),
+        onRunNow: vi.fn(),
+        onPause: vi.fn(),
+        onResume: vi.fn(),
+        onRetry: vi.fn()
+      });
+
+      expect(generated.partialData).toBe(true);
+      expect(section.textContent).toContain("Ledger could not be read");
+      expect(section.textContent).toContain("Partial data");
+    } finally {
+      process.env.HOME = previousHome;
+      await rm(tempHome, { recursive: true, force: true });
+    }
+  });
+
   it("renders loading and error states", () => {
     const loading = renderGlobalDashboard(
       null,
       true,
       null,
       { sortBy: "urgency" },
-      { onRefresh: vi.fn(), onSetStatusFilter: vi.fn(), onSetWorkspaceFilter: vi.fn(), onSetSortBy: vi.fn() }
+      {
+        onRefresh: vi.fn(),
+        onSetStatusFilter: vi.fn(),
+        onSetWorkspaceFilter: vi.fn(),
+        onSetSortBy: vi.fn(),
+        onOpenWorkspace: vi.fn(),
+        onRunNow: vi.fn(),
+        onPause: vi.fn(),
+        onResume: vi.fn(),
+        onRetry: vi.fn()
+      }
     );
     expect(loading.textContent).toContain("Loading global dashboard");
 
@@ -321,12 +402,69 @@ describe("global dashboard view", () => {
       false,
       "Refresh failed.",
       { sortBy: "urgency" },
-      { onRefresh: vi.fn(), onSetStatusFilter: vi.fn(), onSetWorkspaceFilter: vi.fn(), onSetSortBy: vi.fn() }
+      {
+        onRefresh: vi.fn(),
+        onSetStatusFilter: vi.fn(),
+        onSetWorkspaceFilter: vi.fn(),
+        onSetSortBy: vi.fn(),
+        onOpenWorkspace: vi.fn(),
+        onRunNow: vi.fn(),
+        onPause: vi.fn(),
+        onResume: vi.fn(),
+        onRetry: vi.fn()
+      }
     );
     expect(failure.textContent).toContain("Refresh failed.");
   });
 
+  it("renders direct global actions and workspace drilldown controls", () => {
+    const handlers = {
+      onRefresh: vi.fn(),
+      onSetStatusFilter: vi.fn(),
+      onSetWorkspaceFilter: vi.fn(),
+      onSetSortBy: vi.fn(),
+      onOpenWorkspace: vi.fn(),
+      onRunNow: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn(),
+      onRetry: vi.fn()
+    };
+    const section = renderGlobalDashboard(snapshot, false, null, { sortBy: "urgency" }, handlers);
+
+    Array.from(section.querySelectorAll("button"))
+      .find((button) => button.textContent === "Open Workspace")
+      ?.click();
+    Array.from(section.querySelectorAll("button"))
+      .find((button) => button.textContent === "Run Now")
+      ?.click();
+    Array.from(section.querySelectorAll("button"))
+      .find((button) => button.textContent === "Pause")
+      ?.click();
+    Array.from(section.querySelectorAll("button"))
+      .find((button) => button.textContent === "Retry")
+      ?.click();
+
+    expect(handlers.onOpenWorkspace).toHaveBeenCalledWith("/tmp/alpha", "task-1");
+    expect(handlers.onRunNow).toHaveBeenCalledWith("workspace-1", "task-1");
+    expect(handlers.onPause).toHaveBeenCalledWith("workspace-1", "task-1");
+    expect(handlers.onRetry).toHaveBeenCalledWith("workspace-1", "task-1", "run-1");
+  });
+
   it("mounts a dedicated global tab and loads the aggregated snapshot", async () => {
+    let globalRequestCount = 0;
+    const updatedSnapshot: GlobalDashboardSnapshot = {
+      ...snapshot,
+      jobs: snapshot.jobs.map((job) =>
+        job.taskId === "task-1"
+          ? {
+              ...job,
+              enabled: false,
+              lastRunStatus: "paused",
+              availableActions: ["run_now", "resume", "retry"]
+            }
+          : job
+      )
+    };
     const api: PluginAPI = {
       context: {
         theme: "light",
@@ -335,6 +473,24 @@ describe("global dashboard view", () => {
       },
       onContextChange: () => () => undefined,
       rpc: async (method, path) => {
+        if (method === "POST" && path === "/v1/global-jobs/workspace-1/task-1/actions/pause") {
+          return {
+            task: {
+              id: "task-1",
+              workspaceKey: "workspace-1",
+              workspacePath: "/tmp/alpha",
+              name: "Daily summary",
+              prompt: "A",
+              recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+              recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+              enabled: false,
+              nextRunAt: "2099-01-01T08:00:00.000Z",
+              lastRunStatus: "paused",
+              createdAt: "2026-04-27T08:00:00.000Z",
+              updatedAt: "2026-04-27T08:00:00.000Z"
+            }
+          };
+        }
         if (method === "GET" && path.startsWith("/v1/workspace-state")) {
           return {
             capability: { status: "needs_config", message: "Configure execution." },
@@ -344,7 +500,8 @@ describe("global dashboard view", () => {
           };
         }
         if (method === "GET" && path.startsWith("/v1/global-dashboard")) {
-          return snapshot;
+          globalRequestCount += 1;
+          return globalRequestCount > 1 ? updatedSnapshot : snapshot;
         }
         throw new Error(`Unexpected RPC: ${method} ${path}`);
       }
@@ -357,6 +514,489 @@ describe("global dashboard view", () => {
     expect(container.textContent).toContain("Global Dashboard");
     expect(container.textContent).toContain("Daily summary");
     expect(container.textContent).toContain("Global overview");
+
+    container.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+      if (button.textContent === "Pause") {
+        button.click();
+      }
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain("Resume");
+
+    app.unmount();
+  });
+
+  it("shows a pending state for a global action and refreshes immediately after it resolves", async () => {
+    let globalRequestCount = 0;
+    let resolvePause: ((value: unknown) => void) | null = null;
+    const updatedSnapshot: GlobalDashboardSnapshot = {
+      ...snapshot,
+      jobs: snapshot.jobs.map((job) =>
+        job.taskId === "task-1"
+          ? {
+              ...job,
+              enabled: false,
+              lastRunStatus: "paused",
+              availableActions: ["run_now", "resume", "retry"]
+            }
+          : job
+      )
+    };
+
+    const api: PluginAPI = {
+      context: {
+        theme: "light",
+        project: null,
+        session: null
+      },
+      onContextChange: () => () => undefined,
+      rpc: async (method, path) => {
+        if (method === "POST" && path === "/v1/global-jobs/workspace-1/task-1/actions/pause") {
+          return await new Promise((resolve) => {
+            resolvePause = resolve;
+          });
+        }
+        if (method === "GET" && path.startsWith("/v1/workspace-state")) {
+          return {
+            capability: { status: "needs_config", message: "Configure execution." },
+            executionProfile: null,
+            tasks: [],
+            runs: []
+          };
+        }
+        if (method === "GET" && path.startsWith("/v1/global-dashboard")) {
+          globalRequestCount += 1;
+          return globalRequestCount > 1 ? updatedSnapshot : snapshot;
+        }
+        throw new Error(`Unexpected RPC: ${method} ${path}`);
+      }
+    };
+
+    const container = document.createElement("div");
+    const app = new WorkspaceScheduledPromptsApp(container, api);
+    await app.mount();
+
+    const pauseButton = container.querySelector<HTMLButtonElement>('button[data-action="pause"]');
+    pauseButton?.click();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain("Working...");
+
+    resolvePause?.({
+      task: {
+        id: "task-1",
+        workspaceKey: "workspace-1",
+        workspacePath: "/tmp/alpha",
+        name: "Daily summary",
+        prompt: "A",
+        recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+        recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+        enabled: false,
+        nextRunAt: "2099-01-01T08:00:00.000Z",
+        lastRunStatus: "paused",
+        createdAt: "2026-04-27T08:00:00.000Z",
+        updatedAt: "2026-04-27T08:00:00.000Z"
+      }
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(globalRequestCount).toBeGreaterThan(1);
+    expect(container.textContent).toContain("Resume");
+    expect(container.textContent).toContain('Schedule "Daily summary" paused.');
+
+    app.unmount();
+  });
+
+  it("opens a workspace drilldown from a global job", async () => {
+    const api: PluginAPI = {
+      context: {
+        theme: "light",
+        project: null,
+        session: null
+      },
+      onContextChange: () => () => undefined,
+      rpc: async (method, path) => {
+        if (method === "GET" && path.startsWith("/v1/global-dashboard")) {
+          return snapshot;
+        }
+        if (method === "GET" && path.startsWith("/v1/workspace-state")) {
+          return {
+            capability: { status: "needs_config", message: "Configure execution." },
+            executionProfile: null,
+            tasks: [
+              {
+                id: "task-1",
+                workspaceKey: "workspace-1",
+                workspacePath: "/tmp/alpha",
+                name: "Workspace view task",
+                prompt: "A",
+                recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+                recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+                enabled: true,
+                nextRunAt: "2099-01-01T08:00:00.000Z",
+                lastRunStatus: "succeeded",
+                createdAt: "2026-04-27T08:00:00.000Z",
+                updatedAt: "2026-04-27T08:00:00.000Z"
+              }
+            ],
+            runs: []
+          };
+        }
+        throw new Error(`Unexpected RPC: ${method} ${path}`);
+      }
+    };
+
+    const container = document.createElement("div");
+    const app = new WorkspaceScheduledPromptsApp(container, api);
+    await app.mount();
+
+    Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent === "Open Workspace")
+      ?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).toContain("Workspace view task");
+    expect(container.textContent).toContain("Workspace");
+
+    app.unmount();
+  });
+
+  it("routes global HTTP actions across workspaces and rejects stale retry targets", async () => {
+    const tempHome = await mkdtemp(path.join(os.tmpdir(), "scheduled-prompts-global-http-"));
+    const previousHome = process.env.HOME;
+    process.env.HOME = tempHome;
+
+    let server: Awaited<ReturnType<typeof startHttpServer>> | null = null;
+
+    try {
+      const workspaceA = path.join(tempHome, "alpha");
+      const workspaceB = path.join(tempHome, "beta");
+      await mkdir(workspaceA, { recursive: true });
+      await mkdir(workspaceB, { recursive: true });
+
+      const workspaceAKey = workspaceKeyFromPath(workspaceA);
+      const workspaceBKey = workspaceKeyFromPath(workspaceB);
+
+      await saveWorkspaceLedger({
+        version: 1,
+        workspaceKey: workspaceAKey,
+        workspacePath: workspaceA,
+        tasks: [
+          {
+            id: "task-a",
+            workspaceKey: workspaceAKey,
+            workspacePath: workspaceA,
+            name: "Alpha task",
+            prompt: "Alpha",
+            recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+            recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: "2099-01-01T08:00:00.000Z",
+            lastRunStatus: "failed",
+            createdAt: "2026-04-27T08:00:00.000Z",
+            updatedAt: "2026-04-27T08:00:00.000Z"
+          }
+        ],
+        runs: [
+          {
+            id: "run-failed-a",
+            occurrenceKey: "task-a:2026-04-27T08:00:00.000Z",
+            taskId: "task-a",
+            workspaceKey: workspaceAKey,
+            scheduledFor: "2026-04-27T08:00:00.000Z",
+            startedAt: "2026-04-27T08:00:01.000Z",
+            finishedAt: "2026-04-27T08:00:10.000Z",
+            status: "failed",
+            outcomeSummary: "failed",
+            failureReason: "failed",
+            retryOfRunId: null,
+            executionRequest: null
+          }
+        ],
+        executionProfile: null,
+        updatedAt: "2026-04-27T08:00:00.000Z"
+      });
+
+      await saveWorkspaceLedger({
+        version: 1,
+        workspaceKey: workspaceBKey,
+        workspacePath: workspaceB,
+        tasks: [
+          {
+            id: "task-b",
+            workspaceKey: workspaceBKey,
+            workspacePath: workspaceB,
+            name: "Beta task",
+            prompt: "Beta",
+            recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "10:00" },
+            recurrenceSummary: "Daily at 10:00 (Europe/Paris)",
+            enabled: false,
+            nextRunAt: "2099-01-01T08:00:00.000Z",
+            lastRunStatus: "paused",
+            createdAt: "2026-04-27T08:00:00.000Z",
+            updatedAt: "2026-04-27T08:00:00.000Z"
+          }
+        ],
+        runs: [],
+        executionProfile: null,
+        updatedAt: "2026-04-27T08:00:00.000Z"
+      });
+
+      server = await startHttpServer(new SchedulerService());
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Expected an ephemeral HTTP port.");
+      }
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+
+      const pauseResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceAKey}/task-a/actions/pause`, {
+        method: "POST"
+      });
+      expect(pauseResponse.status).toBe(200);
+      expect((await pauseResponse.json()).task.enabled).toBe(false);
+
+      const resumeResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceBKey}/task-b/actions/resume`, {
+        method: "POST"
+      });
+      expect(resumeResponse.status).toBe(200);
+      expect((await resumeResponse.json()).task.enabled).toBe(true);
+
+      const runNowResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceAKey}/task-a/actions/run-now`, {
+        method: "POST"
+      });
+      expect(runNowResponse.status).toBe(202);
+      const runNowPayload = await runNowResponse.json();
+      expect(runNowPayload.run.taskId).toBe("task-a");
+      expect(runNowPayload.run.status).toBe("failed");
+
+      const staleRetryResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceAKey}/task-a/actions/retry`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ runId: "run-stale" })
+      });
+      expect(staleRetryResponse.status).toBe(400);
+      expect((await staleRetryResponse.json()).error).toContain("latest actionable run");
+
+      const retryResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceAKey}/task-a/actions/retry`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ runId: runNowPayload.run.id })
+      });
+      expect(retryResponse.status).toBe(202);
+      expect((await retryResponse.json()).run.retryOfRunId).toBe(runNowPayload.run.id);
+
+      const refreshedA = await loadWorkspaceLedger(workspaceA);
+      const refreshedB = await loadWorkspaceLedger(workspaceB);
+      expect(refreshedA.tasks[0]?.enabled).toBe(false);
+      expect(refreshedB.tasks[0]?.enabled).toBe(true);
+    } finally {
+      process.env.HOME = previousHome;
+      await new Promise<void>((resolve, reject) => {
+        if (!server) {
+          resolve();
+          return;
+        }
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+      await rm(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it("routes all global actions to the correct workspace-scoped RPC endpoints", async () => {
+    const actionSnapshot: GlobalDashboardSnapshot = {
+      ...snapshot,
+      jobs: [
+        {
+          ...snapshot.jobs[0]!,
+          taskId: "task-failed",
+          lastRunStatus: "failed",
+          latestActionableRunId: "run-failed",
+          availableActions: ["run_now", "pause", "retry"]
+        },
+        {
+          taskId: "task-paused",
+          workspaceKey: "workspace-2",
+          workspacePath: "/tmp/beta",
+          workspaceLabel: "beta",
+          workspaceDrilldownAvailable: true,
+          name: "Paused job",
+          scheduleType: "daily",
+          recurrenceSummary: "Daily at 10:00 (Europe/Paris)",
+          enabled: false,
+          nextRunAt: "2099-01-01T08:00:00.000Z",
+          lastRunStatus: "paused",
+          lastRunFinishedAt: null,
+          latestActionableRunId: null,
+          workspaceAvailability: "available",
+          availableActions: ["run_now", "resume"]
+        }
+      ]
+    };
+    const rpcCalls: string[] = [];
+    const api: PluginAPI = {
+      context: {
+        theme: "light",
+        project: null,
+        session: null
+      },
+      onContextChange: () => () => undefined,
+      rpc: async (method, path, body) => {
+        rpcCalls.push(`${method} ${path}`);
+
+        if (method === "GET" && path.startsWith("/v1/global-dashboard")) {
+          return actionSnapshot;
+        }
+        if (method === "GET" && path.startsWith("/v1/workspace-state")) {
+          return {
+            capability: { status: "needs_config", message: "Configure execution." },
+            executionProfile: null,
+            tasks: [],
+            runs: []
+          };
+        }
+        if (method === "POST" && path === "/v1/global-jobs/workspace-1/task-failed/actions/run-now") {
+          return {
+            task: {
+              id: "task-failed",
+              workspaceKey: "workspace-1",
+              workspacePath: "/tmp/alpha",
+              name: "Daily summary",
+              prompt: "A",
+              recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+              recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+              enabled: true,
+              nextRunAt: "2099-01-01T08:00:00.000Z",
+              lastRunStatus: "running",
+              createdAt: "2026-04-27T08:00:00.000Z",
+              updatedAt: "2026-04-27T08:00:00.000Z"
+            },
+            run: {
+              id: "run-now",
+              occurrenceKey: "task-failed:2026-04-27T08:00:00.000Z",
+              taskId: "task-failed",
+              workspaceKey: "workspace-1",
+              scheduledFor: "2026-04-27T08:00:00.000Z",
+              startedAt: "2026-04-27T08:00:01.000Z",
+              finishedAt: null,
+              status: "running",
+              outcomeSummary: "running",
+              failureReason: null,
+              retryOfRunId: null,
+              executionRequest: null
+            }
+          };
+        }
+        if (method === "POST" && path === "/v1/global-jobs/workspace-1/task-failed/actions/pause") {
+          return {
+            task: {
+              id: "task-failed",
+              workspaceKey: "workspace-1",
+              workspacePath: "/tmp/alpha",
+              name: "Daily summary",
+              prompt: "A",
+              recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+              recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+              enabled: false,
+              nextRunAt: "2099-01-01T08:00:00.000Z",
+              lastRunStatus: "paused",
+              createdAt: "2026-04-27T08:00:00.000Z",
+              updatedAt: "2026-04-27T08:00:00.000Z"
+            }
+          };
+        }
+        if (method === "POST" && path === "/v1/global-jobs/workspace-1/task-failed/actions/retry") {
+          expect(body).toEqual({ runId: "run-failed" });
+          return {
+            task: {
+              id: "task-failed",
+              workspaceKey: "workspace-1",
+              workspacePath: "/tmp/alpha",
+              name: "Daily summary",
+              prompt: "A",
+              recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+              recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+              enabled: true,
+              nextRunAt: "2099-01-01T08:00:00.000Z",
+              lastRunStatus: "running",
+              createdAt: "2026-04-27T08:00:00.000Z",
+              updatedAt: "2026-04-27T08:00:00.000Z"
+            },
+            run: {
+              id: "run-retry",
+              occurrenceKey: "task-failed:2026-04-27T08:30:00.000Z",
+              taskId: "task-failed",
+              workspaceKey: "workspace-1",
+              scheduledFor: "2026-04-27T08:30:00.000Z",
+              startedAt: "2026-04-27T08:30:01.000Z",
+              finishedAt: null,
+              status: "running",
+              outcomeSummary: "running",
+              failureReason: null,
+              retryOfRunId: "run-failed",
+              executionRequest: null
+            }
+          };
+        }
+        if (method === "POST" && path === "/v1/global-jobs/workspace-2/task-paused/actions/resume") {
+          return {
+            task: {
+              id: "task-paused",
+              workspaceKey: "workspace-2",
+              workspacePath: "/tmp/beta",
+              name: "Paused job",
+              prompt: "B",
+              recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "10:00" },
+              recurrenceSummary: "Daily at 10:00 (Europe/Paris)",
+              enabled: true,
+              nextRunAt: "2099-01-01T08:00:00.000Z",
+              lastRunStatus: "succeeded",
+              createdAt: "2026-04-27T08:00:00.000Z",
+              updatedAt: "2026-04-27T08:00:00.000Z"
+            }
+          };
+        }
+
+        throw new Error(`Unexpected RPC: ${method} ${path}`);
+      }
+    };
+
+    const container = document.createElement("div");
+    const app = new WorkspaceScheduledPromptsApp(container, api);
+    await app.mount();
+
+    let failedRow = container.querySelector<HTMLElement>('.wsp-global-job[data-task-id="task-failed"]');
+    failedRow?.querySelector<HTMLButtonElement>('button[data-action="run_now"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    failedRow = container.querySelector<HTMLElement>('.wsp-global-job[data-task-id="task-failed"]');
+    failedRow?.querySelector<HTMLButtonElement>('button[data-action="pause"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    failedRow = container.querySelector<HTMLElement>('.wsp-global-job[data-task-id="task-failed"]');
+    failedRow?.querySelector<HTMLButtonElement>('button[data-action="retry"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const pausedRow = container.querySelector<HTMLElement>('.wsp-global-job[data-task-id="task-paused"]');
+    pausedRow?.querySelector<HTMLButtonElement>('button[data-action="resume"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(rpcCalls.some((call) => call.startsWith("GET /v1/global-dashboard"))).toBe(true);
+    expect(rpcCalls.some((call) => call === "POST /v1/global-jobs/workspace-1/task-failed/actions/run-now")).toBe(true);
+    expect(rpcCalls.some((call) => call === "POST /v1/global-jobs/workspace-1/task-failed/actions/pause")).toBe(true);
+    expect(rpcCalls.some((call) => call === "POST /v1/global-jobs/workspace-1/task-failed/actions/retry")).toBe(true);
+    expect(rpcCalls.some((call) => call === "POST /v1/global-jobs/workspace-2/task-paused/actions/resume")).toBe(true);
 
     app.unmount();
   });

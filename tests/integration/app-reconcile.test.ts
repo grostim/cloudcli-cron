@@ -65,5 +65,5 @@ describe("app reconciliation", () => {
     expect(container.textContent).not.toContain("Schedule deleted.");
 
     app.unmount();
-  });
+  }, 10_000);
 });

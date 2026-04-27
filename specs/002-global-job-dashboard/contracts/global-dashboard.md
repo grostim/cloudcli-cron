@@ -14,6 +14,8 @@ implementation details.
   - `Pause`
   - `Resume`
   - `Retry`
+- Each row also exposes a drilldown affordance back to the source workspace view so a user can
+  jump from the global overview into the workspace context when needed.
 
 ## Snapshot Semantics
 

@@ -48,7 +48,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RunResponse"
+                $ref: "#/components/schemas/GlobalDashboardActionResponse"
 
   /v1/global-jobs/{workspaceKey}/{taskId}/actions/pause:
     post:
@@ -62,7 +62,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TaskResponse"
+                $ref: "#/components/schemas/GlobalDashboardActionResponse"
 
   /v1/global-jobs/{workspaceKey}/{taskId}/actions/resume:
     post:
@@ -76,7 +76,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TaskResponse"
+                $ref: "#/components/schemas/GlobalDashboardActionResponse"
 
   /v1/global-jobs/{workspaceKey}/{taskId}/actions/retry:
     post:
@@ -100,7 +100,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RunResponse"
+                $ref: "#/components/schemas/GlobalDashboardActionResponse"
 
 components:
   parameters:
@@ -168,6 +168,7 @@ components:
           workspaceKey,
           workspacePath,
           workspaceLabel,
+          workspaceDrilldownAvailable,
           name,
           recurrenceSummary,
           enabled,
@@ -186,6 +187,8 @@ components:
           type: string
         workspaceLabel:
           type: string
+        workspaceDrilldownAvailable:
+          type: boolean
         name:
           type: string
         recurrenceSummary:
@@ -234,42 +237,43 @@ components:
           type: string
           nullable: true
 
-    TaskResponse:
+    GlobalDashboardActionResponse:
       type: object
       required: [task]
       properties:
         task:
-          type: object
-          required: [id, workspaceKey, workspacePath, name, enabled]
-          properties:
-            id:
-              type: string
-            workspaceKey:
-              type: string
-            workspacePath:
-              type: string
-            name:
-              type: string
-            enabled:
-              type: boolean
-
-    RunResponse:
-      type: object
-      required: [run]
-      properties:
+          $ref: "#/components/schemas/WorkspaceTask"
         run:
-          type: object
-          required: [id, taskId, workspaceKey, status, scheduledFor]
-          properties:
-            id:
-              type: string
-            taskId:
-              type: string
-            workspaceKey:
-              type: string
-            status:
-              type: string
-              enum: [running, succeeded, failed, missed]
-            scheduledFor:
-              type: string
-              format: date-time
+          $ref: "#/components/schemas/ScheduledRun"
+
+    WorkspaceTask:
+      type: object
+      required: [id, workspaceKey, workspacePath, name, enabled]
+      properties:
+        id:
+          type: string
+        workspaceKey:
+          type: string
+        workspacePath:
+          type: string
+        name:
+          type: string
+        enabled:
+          type: boolean
+
+    ScheduledRun:
+      type: object
+      required: [id, taskId, workspaceKey, status, scheduledFor]
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        workspaceKey:
+          type: string
+        status:
+          type: string
+          enum: [running, succeeded, failed, missed]
+        scheduledFor:
+          type: string
+          format: date-time

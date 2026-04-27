@@ -34,8 +34,14 @@ This is the first functional local-only version.
 The `v0.2.0` feature branch adds a dedicated global dashboard tab for cross-workspace visibility.
 
 - aggregated job inventory across known workspaces
+- direct per-job actions from the global view:
+  - `Run Now`
+  - `Pause`
+  - `Resume`
+  - `Retry`
 - degraded workspace warnings
-- direct operational actions from the global view
+- workspace drilldown back to the original workspace context
+- partial-data signaling when one or more ledgers cannot be read cleanly
 
 ## Requirements
 

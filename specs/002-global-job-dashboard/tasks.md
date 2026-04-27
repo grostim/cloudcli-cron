@@ -96,16 +96,16 @@
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Extend contract tests for global action endpoints and retry target validation in `tests/contract/plugin-rpc.test.ts`
-- [ ] T027 [P] [US3] Add integration coverage for cross-workspace `Run Now`, `Pause`, `Resume`, and `Retry` routing in `tests/integration/global-dashboard.test.ts` and `tests/integration/scheduler-loop.test.ts`
-- [ ] T028 [P] [US3] Add frontend jsdom coverage for global action buttons, optimistic refresh, and workspace drilldown affordances in `tests/integration/global-dashboard.test.ts`
+- [X] T026 [P] [US3] Extend contract tests for global action endpoints and retry target validation in `tests/contract/plugin-rpc.test.ts`
+- [X] T027 [P] [US3] Add integration coverage for cross-workspace `Run Now`, `Pause`, `Resume`, and `Retry` routing in `tests/integration/global-dashboard.test.ts` and `tests/integration/scheduler-loop.test.ts`
+- [X] T028 [P] [US3] Add frontend jsdom coverage for global action buttons, optimistic refresh, and workspace drilldown affordances in `tests/integration/global-dashboard.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T029 [P] [US3] Implement cross-workspace action handlers and latest actionable run resolution in `src/server/dashboard.ts`, `src/server/http.ts`, and `src/server/scheduler.ts`
-- [ ] T030 [P] [US3] Expose per-job available actions and workspace drilldown metadata in `src/server/dashboard.ts` and `src/shared/model.ts`
-- [ ] T031 [P] [US3] Build global action controls and workspace navigation affordances in `src/client/views/global-dashboard.ts`
-- [ ] T032 [US3] Wire global action dispatch, optimistic recovery, and post-action snapshot refresh in `src/client/app.ts`, `src/client/api.ts`, and `src/client/state.ts`
+- [X] T029 [P] [US3] Implement cross-workspace action handlers and latest actionable run resolution in `src/server/dashboard.ts`, `src/server/http.ts`, and `src/server/scheduler.ts`
+- [X] T030 [P] [US3] Expose per-job available actions and workspace drilldown metadata in `src/server/dashboard.ts` and `src/shared/model.ts`
+- [X] T031 [P] [US3] Build global action controls and workspace navigation affordances in `src/client/views/global-dashboard.ts`
+- [X] T032 [US3] Wire global action dispatch, optimistic recovery, and post-action snapshot refresh in `src/client/app.ts`, `src/client/api.ts`, and `src/client/state.ts`
 
 **Checkpoint**: All user stories are independently functional.
 
@@ -115,11 +115,11 @@
 
 **Purpose**: Finish documentation, performance validation, and release hardening across all stories.
 
-- [ ] T033 [P] Add README coverage for the dedicated global dashboard tab, direct actions, and degraded workspace behavior in `README.md`
-- [ ] T034 [P] Add lightweight performance coverage for loading 100 aggregated jobs in `tests/integration/performance.test.ts` and `tests/integration/global-dashboard.test.ts`
-- [ ] T035 [P] Add regression coverage for unreadable ledgers and moved workspaces in `tests/unit/dashboard.test.ts` and `tests/integration/global-dashboard.test.ts`
-- [ ] T036 Validate quickstart flows and record any fixes in `specs/002-global-job-dashboard/quickstart.md`
-- [ ] T037 Run full test suite, fix residual issues, and confirm build outputs in `package.json` scripts and `dist/`
+- [X] T033 [P] Add README coverage for the dedicated global dashboard tab, direct actions, and degraded workspace behavior in `README.md`
+- [X] T034 [P] Add lightweight performance coverage for loading 100 aggregated jobs in `tests/integration/performance.test.ts` and `tests/integration/global-dashboard.test.ts`
+- [X] T035 [P] Add regression coverage for unreadable ledgers and moved workspaces in `tests/unit/dashboard.test.ts` and `tests/integration/global-dashboard.test.ts`
+- [X] T036 Validate quickstart flows and record any fixes in `specs/002-global-job-dashboard/quickstart.md`
+- [X] T037 Run full test suite, fix residual issues, and confirm build outputs in `package.json` scripts and `dist/`
 
 ---
 

@@ -25,6 +25,7 @@ export interface AppState {
   globalFilters: GlobalDashboardFilter;
   globalBusy: boolean;
   globalError: string | null;
+  globalPendingActionKey: string | null;
 }
 
 export const DEFAULT_CAPABILITY: ExecutionCapability = {
@@ -50,7 +51,8 @@ export class AppStateStore {
     globalSnapshot: null,
     globalFilters: { sortBy: "urgency" },
     globalBusy: false,
-    globalError: null
+    globalError: null,
+    globalPendingActionKey: null
   };
 
   private readonly listeners = new Set<Listener>();

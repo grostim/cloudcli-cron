@@ -56,7 +56,12 @@ function deriveTaskStatus(
 }
 
 function findLatestActionableRunId(runs: ScheduledRun[]): string | null {
-  return runs.find((run) => run.status === "failed" || run.status === "missed")?.id ?? null;
+  const latest = runs[0];
+  if (!latest) {
+    return null;
+  }
+
+  return latest.status === "failed" || latest.status === "missed" ? latest.id : null;
 }
 
 function buildAvailableActions(task: WorkspaceTask, latestActionableRunId: string | null): GlobalDashboardAction[] {
@@ -83,6 +88,7 @@ function buildJobRecord(
     workspaceKey: ledger.workspaceKey,
     workspacePath: ledger.workspacePath,
     workspaceLabel: ledgerRecord.workspaceLabel,
+    workspaceDrilldownAvailable: ledgerRecord.status !== "unavailable",
     name: task.name,
     scheduleType: task.recurrence.scheduleType,
     recurrenceSummary: task.recurrenceSummary,

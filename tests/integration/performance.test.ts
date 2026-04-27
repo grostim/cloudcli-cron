@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ScheduledRun, WorkspaceTask } from "../../src/shared/model.js";
+import { buildGlobalDashboardSnapshot } from "../../src/server/dashboard.js";
 import { SchedulerService } from "../../src/server/scheduler.js";
 import { saveWorkspaceLedger } from "../../src/server/storage.js";
 import { workspaceKeyFromPath } from "../../src/shared/workspace.js";
@@ -83,6 +84,51 @@ describe("performance fixtures", () => {
 
     expect(state.tasks).toHaveLength(100);
     expect(state.runs).toHaveLength(500);
+    expect(durationMs).toBeLessThan(2_000);
+  });
+
+  it("builds a 100-job global dashboard snapshot within the documented budget", async () => {
+    const workspacePaths = Array.from({ length: 4 }, (_, index) => path.join(tempHome, `project-${index}`));
+    const startedAt = performance.now();
+
+    for (const [workspaceIndex, currentPath] of workspacePaths.entries()) {
+      await mkdir(currentPath, { recursive: true });
+      const workspaceKey = workspaceKeyFromPath(currentPath);
+      const tasks: WorkspaceTask[] = Array.from({ length: 25 }, (_, taskIndex) => ({
+        id: `task-${workspaceIndex}-${taskIndex}`,
+        workspaceKey,
+        workspacePath: currentPath,
+        name: `Task ${workspaceIndex}-${taskIndex}`,
+        prompt: `Prompt ${workspaceIndex}-${taskIndex}`,
+        recurrence: {
+          scheduleType: "daily",
+          timezone: "Europe/Paris",
+          localTime: "09:00"
+        },
+        recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+        enabled: taskIndex % 3 !== 0,
+        nextRunAt: "2099-01-01T08:00:00.000Z",
+        lastRunStatus: taskIndex % 5 === 0 ? "failed" : "succeeded",
+        createdAt: "2026-04-26T08:00:00.000Z",
+        updatedAt: "2026-04-26T08:00:00.000Z"
+      }));
+
+      await saveWorkspaceLedger({
+        version: 1,
+        workspaceKey,
+        workspacePath: currentPath,
+        tasks,
+        runs: [],
+        executionProfile: null,
+        updatedAt: "2026-04-26T08:00:00.000Z"
+      });
+    }
+
+    const snapshot = await buildGlobalDashboardSnapshot({ sortBy: "urgency" });
+    const durationMs = performance.now() - startedAt;
+
+    expect(snapshot.jobs).toHaveLength(100);
+    expect(snapshot.summary.totalJobs).toBe(100);
     expect(durationMs).toBeLessThan(2_000);
   });
 });

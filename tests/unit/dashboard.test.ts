@@ -191,6 +191,76 @@ describe("global dashboard aggregation", () => {
     expect(snapshot.summary.problemJobs).toBe(1);
   });
 
+  it("only exposes retry for the latest failed or missed run", async () => {
+    const workspacePath = path.join(tempHome, "workspace-retry");
+    const workspaceKey = workspaceKeyFromPath(workspacePath);
+    await mkdir(workspacePath, { recursive: true });
+
+    await saveWorkspaceLedger({
+      version: 1,
+      workspaceKey,
+      workspacePath,
+      tasks: [
+        {
+          id: "task-latest-success",
+          workspaceKey,
+          workspacePath,
+          name: "Recovered task",
+          prompt: "Recovered",
+          recurrence: {
+            scheduleType: "daily",
+            timezone: "Europe/Paris",
+            localTime: "09:00"
+          },
+          recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: "2099-01-01T08:00:00.000Z",
+          lastRunStatus: "succeeded",
+          createdAt: "2026-04-27T08:00:00.000Z",
+          updatedAt: "2026-04-27T08:00:00.000Z"
+        }
+      ],
+      runs: [
+        {
+          id: "run-succeeded",
+          occurrenceKey: "task-latest-success:2026-04-28T08:00:00.000Z",
+          taskId: "task-latest-success",
+          workspaceKey,
+          scheduledFor: "2026-04-28T08:00:00.000Z",
+          startedAt: "2026-04-28T08:00:01.000Z",
+          finishedAt: "2026-04-28T08:00:10.000Z",
+          status: "succeeded",
+          outcomeSummary: "ok",
+          failureReason: null,
+          retryOfRunId: null,
+          executionRequest: null
+        },
+        {
+          id: "run-failed-old",
+          occurrenceKey: "task-latest-success:2026-04-27T08:00:00.000Z",
+          taskId: "task-latest-success",
+          workspaceKey,
+          scheduledFor: "2026-04-27T08:00:00.000Z",
+          startedAt: "2026-04-27T08:00:01.000Z",
+          finishedAt: "2026-04-27T08:00:10.000Z",
+          status: "failed",
+          outcomeSummary: "failed",
+          failureReason: "failed",
+          retryOfRunId: null,
+          executionRequest: null
+        }
+      ],
+      executionProfile: null,
+      updatedAt: "2026-04-27T08:00:00.000Z"
+    });
+
+    const snapshot = await buildGlobalDashboardSnapshot({ sortBy: "urgency" });
+
+    expect(snapshot.jobs).toHaveLength(1);
+    expect(snapshot.jobs[0]?.latestActionableRunId).toBeNull();
+    expect(snapshot.jobs[0]?.availableActions).toEqual(["run_now", "pause"]);
+  });
+
   it("does not classify a completed one-time schedule with no next run as a problem", async () => {
     const workspacePath = path.join(tempHome, "workspace-d");
     const workspaceKey = workspaceKeyFromPath(workspacePath);
@@ -245,5 +315,50 @@ describe("global dashboard aggregation", () => {
 
     const filtered = await buildGlobalDashboardSnapshot({ sortBy: "urgency", status: "problem" });
     expect(filtered.jobs).toHaveLength(0);
+  });
+
+  it("keeps jobs visible when a persisted workspace has moved away", async () => {
+    const workspacePath = path.join(tempHome, "workspace-e");
+    const workspaceKey = workspaceKeyFromPath(workspacePath);
+    await mkdir(workspacePath, { recursive: true });
+
+    await saveWorkspaceLedger({
+      version: 1,
+      workspaceKey,
+      workspacePath,
+      tasks: [
+        {
+          id: "task-moved",
+          workspaceKey,
+          workspacePath,
+          name: "Moved workspace task",
+          prompt: "Keep visible",
+          recurrence: {
+            scheduleType: "daily",
+            timezone: "Europe/Paris",
+            localTime: "09:00"
+          },
+          recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+          enabled: true,
+          nextRunAt: "2099-01-01T08:00:00.000Z",
+          lastRunStatus: "succeeded",
+          createdAt: "2026-04-27T08:00:00.000Z",
+          updatedAt: "2026-04-27T08:00:00.000Z"
+        }
+      ],
+      runs: [],
+      executionProfile: null,
+      updatedAt: "2026-04-27T08:00:00.000Z"
+    });
+
+    await rm(workspacePath, { recursive: true, force: true });
+
+    const snapshot = await buildGlobalDashboardSnapshot({ sortBy: "urgency" });
+
+    expect(snapshot.jobs).toHaveLength(1);
+    expect(snapshot.jobs[0]?.workspaceAvailability).toBe("unavailable");
+    expect(snapshot.jobs[0]?.workspaceDrilldownAvailable).toBe(false);
+    expect(snapshot.partialData).toBe(true);
+    expect(snapshot.warnings.some((warning) => warning.includes("Workspace path is unavailable"))).toBe(true);
   });
 });

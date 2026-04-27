@@ -1,5 +1,5 @@
-import type { CreateTaskRequest, UpdateTaskRequest } from "../shared/contracts.js";
-import type { GlobalDashboardFilter, WorkspaceTask } from "../shared/model.js";
+import type { CreateTaskRequest, GlobalDashboardActionResponse, UpdateTaskRequest } from "../shared/contracts.js";
+import type { GlobalDashboardFilter, GlobalJobRunStatus, WorkspaceTask } from "../shared/model.js";
 import type { PluginAPI } from "../types.js";
 import { PluginRpcClient } from "./api.js";
 import { AppStateStore, DEFAULT_CAPABILITY } from "./state.js";
@@ -419,6 +419,21 @@ function ensureStyles(): void {
   document.head.append(style);
 }
 
+function normalizeGlobalRunStatus(
+  status: WorkspaceTask["lastRunStatus"],
+  fallback: GlobalJobRunStatus
+): GlobalJobRunStatus {
+  switch (status) {
+    case "running":
+    case "succeeded":
+    case "failed":
+    case "missed":
+      return status;
+    default:
+      return fallback;
+  }
+}
+
 function renderBanner(kind: "error" | "success" | "info", title: string, message: string): HTMLElement {
   const banner = document.createElement("div");
   banner.className = `wsp-banner wsp-banner-${kind}`;
@@ -493,6 +508,113 @@ export class WorkspaceScheduledPromptsApp {
     }
   }
 
+  private updateGlobalSnapshotFromAction(response: GlobalDashboardActionResponse): void {
+    const snapshot = this.state.snapshot.globalSnapshot;
+    if (!snapshot) {
+      return;
+    }
+
+    const jobs = snapshot.jobs.map((job) => {
+      if (job.workspaceKey !== response.task.workspaceKey || job.taskId !== response.task.id) {
+        return job;
+      }
+
+      return {
+        ...job,
+        name: response.task.name,
+        workspacePath: response.task.workspacePath,
+        enabled: response.task.enabled,
+        nextRunAt: response.task.nextRunAt,
+        lastRunStatus: normalizeGlobalRunStatus(response.task.lastRunStatus, job.lastRunStatus),
+        lastRunFinishedAt: response.run?.finishedAt ?? job.lastRunFinishedAt
+      };
+    });
+
+    this.state.patch({
+      globalSnapshot: {
+        ...snapshot,
+        jobs
+      }
+    });
+  }
+
+  private async focusWorkspace(workspacePath: string, taskId: string | null = null): Promise<void> {
+    const loaded = await this.loadFromContext(workspacePath);
+    await this.loadGlobalDashboard(true);
+    if (!loaded) {
+      return;
+    }
+
+    this.state.patch({
+      activeTab: "workspace",
+      error: null,
+      successMessage: null,
+      globalError: null,
+      highlightedTaskId: taskId
+    });
+  }
+
+  private async dispatchGlobalAction(
+    action: "run_now" | "pause" | "resume" | "retry",
+    workspaceKey: string,
+    taskId: string,
+    runId?: string
+  ): Promise<void> {
+    this.state.patch({
+      globalPendingActionKey: `${workspaceKey}:${taskId}:${action}`,
+      error: null,
+      successMessage: null,
+      globalError: null
+    });
+
+    try {
+      let response: GlobalDashboardActionResponse;
+      switch (action) {
+        case "run_now":
+          response = await this.rpc.globalRunNow(workspaceKey, taskId);
+          break;
+        case "pause":
+          response = await this.rpc.globalPauseTask(workspaceKey, taskId);
+          break;
+        case "resume":
+          response = await this.rpc.globalResumeTask(workspaceKey, taskId);
+          break;
+        case "retry":
+          if (!runId) {
+            throw new Error("Missing retry target.");
+          }
+          response = await this.rpc.globalRetryTask(workspaceKey, taskId, { runId });
+          break;
+      }
+
+      this.updateGlobalSnapshotFromAction(response);
+      if (this.state.snapshot.workspacePath === response.task.workspacePath) {
+        const refreshed = await this.loadFromContext(response.task.workspacePath);
+        if (refreshed) {
+          this.state.patch({ highlightedTaskId: response.task.id });
+        }
+      }
+      await this.loadGlobalDashboard(true);
+      const messageByAction: Record<typeof action, string> = {
+        run_now: `Manual run finished for "${response.task.name}".`,
+        pause: `Schedule "${response.task.name}" paused.`,
+        resume: `Schedule "${response.task.name}" resumed.`,
+        retry: `Retry finished for "${response.task.name}".`
+      };
+      this.state.patch({
+        successMessage: messageByAction[action],
+        error: null
+      });
+    } catch (error) {
+      this.state.patch({
+        error: error instanceof Error ? error.message : "Failed to perform the global action.",
+        successMessage: null
+      });
+    } finally {
+      this.state.patch({ globalPendingActionKey: null });
+    }
+  }
+
   private async updateGlobalFilters(
     patch: Partial<GlobalDashboardFilter>
   ): Promise<void> {
@@ -524,7 +646,8 @@ export class WorkspaceScheduledPromptsApp {
         globalSnapshot: this.state.snapshot.globalSnapshot,
         globalFilters: this.state.snapshot.globalFilters,
         globalBusy: this.state.snapshot.globalBusy,
-        globalError: this.state.snapshot.globalError
+        globalError: this.state.snapshot.globalError,
+        globalPendingActionKey: this.state.snapshot.globalPendingActionKey
       });
       return true;
     }
@@ -704,19 +827,36 @@ export class WorkspaceScheduledPromptsApp {
           snapshot.globalError,
           snapshot.globalFilters,
           {
-          onRefresh: () => {
-            void this.loadGlobalDashboard();
+            onRefresh: () => {
+              void this.loadGlobalDashboard();
+            },
+            onSetStatusFilter: (status) => {
+              void this.updateGlobalFilters({ status });
+            },
+            onSetWorkspaceFilter: (workspaceKey) => {
+              void this.updateGlobalFilters({ workspaceKey });
+            },
+            onSetSortBy: (sortBy) => {
+              void this.updateGlobalFilters({ sortBy });
+            },
+            onOpenWorkspace: (workspacePath, taskId) => {
+              void this.focusWorkspace(workspacePath, taskId);
+            },
+            onRunNow: (workspaceKey, taskId) => {
+              void this.dispatchGlobalAction("run_now", workspaceKey, taskId);
+            },
+            onPause: (workspaceKey, taskId) => {
+              void this.dispatchGlobalAction("pause", workspaceKey, taskId);
+            },
+            onResume: (workspaceKey, taskId) => {
+              void this.dispatchGlobalAction("resume", workspaceKey, taskId);
+            },
+            onRetry: (workspaceKey, taskId, runId) => {
+              void this.dispatchGlobalAction("retry", workspaceKey, taskId, runId);
+            }
           },
-          onSetStatusFilter: (status) => {
-            void this.updateGlobalFilters({ status });
-          },
-          onSetWorkspaceFilter: (workspaceKey) => {
-            void this.updateGlobalFilters({ workspaceKey });
-          },
-          onSetSortBy: (sortBy) => {
-            void this.updateGlobalFilters({ sortBy });
-          }
-        })
+          snapshot.globalPendingActionKey
+        )
       );
       root.append(main);
       this.container.append(root);

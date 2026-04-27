@@ -12,6 +12,11 @@ export interface GlobalDashboardHandlers {
   onSetStatusFilter(status?: GlobalDashboardStatusFilter): void;
   onSetWorkspaceFilter(workspaceKey?: string): void;
   onSetSortBy(sortBy: GlobalDashboardSortBy): void;
+  onOpenWorkspace(workspacePath: string, taskId: string): void;
+  onRunNow(workspaceKey: string, taskId: string): void;
+  onPause(workspaceKey: string, taskId: string): void;
+  onResume(workspaceKey: string, taskId: string): void;
+  onRetry(workspaceKey: string, taskId: string, runId: string): void;
 }
 
 function statusLabel(job: GlobalJobRecord): string {
@@ -57,12 +62,26 @@ function buildSelectOption(value: string, label: string, selected: boolean): str
   return `<option value="${value}"${selected ? " selected" : ""}>${label}</option>`;
 }
 
+function actionButtonLabel(action: "run_now" | "pause" | "resume" | "retry"): string {
+  switch (action) {
+    case "run_now":
+      return "Run Now";
+    case "pause":
+      return "Pause";
+    case "resume":
+      return "Resume";
+    case "retry":
+      return "Retry";
+  }
+}
+
 export function renderGlobalDashboard(
   snapshot: GlobalDashboardSnapshot | null,
   busy: boolean,
   error: string | null,
   filters: GlobalDashboardFilter,
-  handlers: GlobalDashboardHandlers
+  handlers: GlobalDashboardHandlers,
+  pendingActionKey: string | null = null
 ): HTMLElement {
   const section = document.createElement("section");
   section.className = "wsp-global-dashboard wsp-panel";
@@ -195,6 +214,8 @@ export function renderGlobalDashboard(
   for (const job of snapshot.jobs) {
     const item = document.createElement("li");
     item.className = "wsp-global-job";
+    item.dataset.taskId = job.taskId;
+    item.dataset.workspaceKey = job.workspaceKey;
     item.dataset.status = job.lastRunStatus;
     item.dataset.workspaceAvailability = job.workspaceAvailability;
     if (isProblemJob(job)) {
@@ -212,10 +233,55 @@ export function renderGlobalDashboard(
         <span>${job.recurrenceSummary}</span>
         <span>Next run: ${job.nextRunAt ?? "Not scheduled"}</span>
         <span>Workspace: ${job.workspaceAvailability}</span>
+        <span>Path: ${job.workspacePath}</span>
         ${job.lastRunFinishedAt ? `<span>Last finished: ${job.lastRunFinishedAt}</span>` : ""}
         ${isProblemJob(job) ? `<span>Needs attention</span>` : ""}
       </div>
     `;
+
+    const actions = document.createElement("div");
+    actions.className = "wsp-inline-actions";
+
+    const openWorkspace = document.createElement("button");
+    openWorkspace.type = "button";
+    openWorkspace.dataset.action = "open-workspace";
+    openWorkspace.textContent = "Open Workspace";
+    openWorkspace.disabled = !job.workspaceDrilldownAvailable;
+    openWorkspace.addEventListener("click", () => handlers.onOpenWorkspace(job.workspacePath, job.taskId));
+    actions.append(openWorkspace);
+
+    for (const action of job.availableActions) {
+      const isPending = pendingActionKey === `${job.workspaceKey}:${job.taskId}:${action}`;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.action = action;
+      button.textContent = isPending ? "Working..." : actionButtonLabel(action);
+      button.disabled = busy || isPending || job.workspaceAvailability !== "available";
+      if (action === "retry" && !job.latestActionableRunId) {
+        button.disabled = true;
+      }
+      button.addEventListener("click", () => {
+        switch (action) {
+          case "run_now":
+            handlers.onRunNow(job.workspaceKey, job.taskId);
+            break;
+          case "pause":
+            handlers.onPause(job.workspaceKey, job.taskId);
+            break;
+          case "resume":
+            handlers.onResume(job.workspaceKey, job.taskId);
+            break;
+          case "retry":
+            if (job.latestActionableRunId) {
+              handlers.onRetry(job.workspaceKey, job.taskId, job.latestActionableRunId);
+            }
+            break;
+        }
+      });
+      actions.append(button);
+    }
+
+    item.append(actions);
     list.append(item);
   }
 

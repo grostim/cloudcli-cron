@@ -1,5 +1,5 @@
 import type { CreateTaskRequest, UpdateTaskRequest } from "../shared/contracts.js";
-import type { WorkspaceTask } from "../shared/model.js";
+import type { GlobalDashboardFilter, WorkspaceTask } from "../shared/model.js";
 import type { PluginAPI } from "../types.js";
 import { PluginRpcClient } from "./api.js";
 import { AppStateStore, DEFAULT_CAPABILITY } from "./state.js";
@@ -335,6 +335,15 @@ function ensureStyles(): void {
       gap: 12px;
       align-items: flex-start;
     }
+    .wsp-global-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .wsp-global-controls .wsp-field > span {
+      font-weight: 600;
+      font-size: 12px;
+    }
     .wsp-global-summary {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -361,6 +370,11 @@ function ensureStyles(): void {
       flex-wrap: wrap;
       gap: 8px;
     }
+    .wsp-global-warning-list {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: inherit;
+    }
     .wsp-global-workspace-pill[data-status="partial"] {
       border-color: var(--wsp-accent);
     }
@@ -368,10 +382,27 @@ function ensureStyles(): void {
       border-color: var(--wsp-danger);
       color: var(--wsp-danger);
     }
+    .wsp-global-job {
+      border: 1px solid var(--wsp-border);
+      border-radius: 10px;
+      background: var(--wsp-bg);
+      padding: 12px;
+    }
+    .wsp-global-job[data-problem="true"] {
+      border-color: var(--wsp-danger);
+      box-shadow: inset 0 0 0 1px rgba(180, 35, 24, 0.16);
+    }
+    .wsp-global-job[data-workspace-availability="partial"] {
+      border-color: var(--wsp-accent);
+    }
+    .wsp-global-job[data-workspace-availability="unavailable"] {
+      border-color: var(--wsp-danger);
+    }
 
     @media (max-width: 900px) {
       .wsp-main,
       .wsp-form-grid,
+      .wsp-global-controls,
       .wsp-global-summary {
         grid-template-columns: 1fr;
       }
@@ -457,6 +488,20 @@ export class WorkspaceScheduledPromptsApp {
       });
       return false;
     }
+  }
+
+  private async updateGlobalFilters(
+    patch: Partial<GlobalDashboardFilter>
+  ): Promise<void> {
+    const nextFilters = {
+      ...this.state.snapshot.globalFilters,
+      ...patch
+    };
+    this.state.patch({
+      globalFilters: nextFilters,
+      globalError: null
+    });
+    await this.loadGlobalDashboard();
   }
 
   async loadFromContext(workspacePath: string | null): Promise<boolean> {
@@ -651,9 +696,23 @@ export class WorkspaceScheduledPromptsApp {
     if (snapshot.activeTab === "global") {
       main.style.gridTemplateColumns = "minmax(0, 1fr)";
       main.append(
-        renderGlobalDashboard(snapshot.globalSnapshot, snapshot.globalBusy, snapshot.globalError, {
+        renderGlobalDashboard(
+          snapshot.globalSnapshot,
+          snapshot.globalBusy,
+          snapshot.globalError,
+          snapshot.globalFilters,
+          {
           onRefresh: () => {
             void this.loadGlobalDashboard();
+          },
+          onSetStatusFilter: (status) => {
+            void this.updateGlobalFilters({ status });
+          },
+          onSetWorkspaceFilter: (workspaceKey) => {
+            void this.updateGlobalFilters({ workspaceKey });
+          },
+          onSetSortBy: (sortBy) => {
+            void this.updateGlobalFilters({ sortBy });
           }
         })
       );

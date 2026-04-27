@@ -143,9 +143,126 @@ describe("global dashboard view", () => {
     }
   });
 
+  it("keeps summary counters on the full workspace subset while filters narrow the list", async () => {
+    const tempHome = await mkdtemp(path.join(os.tmpdir(), "scheduled-prompts-global-"));
+    const previousHome = process.env.HOME;
+    process.env.HOME = tempHome;
+
+    try {
+      const workspaceA = path.join(tempHome, "alpha");
+      const workspaceB = path.join(tempHome, "beta");
+      await mkdir(workspaceA, { recursive: true });
+      await mkdir(workspaceB, { recursive: true });
+
+      const workspaceAKey = workspaceKeyFromPath(workspaceA);
+      const workspaceBKey = workspaceKeyFromPath(workspaceB);
+
+      await saveWorkspaceLedger({
+        version: 1,
+        workspaceKey: workspaceAKey,
+        workspacePath: workspaceA,
+        tasks: [
+          {
+            id: "task-failed",
+            workspaceKey: workspaceAKey,
+            workspacePath: workspaceA,
+            name: "Failed",
+            prompt: "Failed",
+            recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+            recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: "2099-01-01T08:00:00.000Z",
+            lastRunStatus: "failed",
+            createdAt: "2026-04-27T08:00:00.000Z",
+            updatedAt: "2026-04-27T08:00:00.000Z"
+          }
+        ],
+        runs: [
+          {
+            id: "run-failed",
+            occurrenceKey: "task-failed:2026-04-27T08:00:00.000Z",
+            taskId: "task-failed",
+            workspaceKey: workspaceAKey,
+            scheduledFor: "2026-04-27T08:00:00.000Z",
+            startedAt: "2026-04-27T08:00:01.000Z",
+            finishedAt: "2026-04-27T08:00:10.000Z",
+            status: "failed",
+            outcomeSummary: "failed",
+            failureReason: "failed",
+            retryOfRunId: null,
+            executionRequest: null
+          }
+        ],
+        executionProfile: null,
+        updatedAt: "2026-04-27T08:00:00.000Z"
+      });
+
+      await saveWorkspaceLedger({
+        version: 1,
+        workspaceKey: workspaceBKey,
+        workspacePath: workspaceB,
+        tasks: [
+          {
+            id: "task-ok",
+            workspaceKey: workspaceBKey,
+            workspacePath: workspaceB,
+            name: "Healthy",
+            prompt: "Healthy",
+            recurrence: { scheduleType: "daily", timezone: "Europe/Paris", localTime: "09:00" },
+            recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: "2099-01-01T08:00:00.000Z",
+            lastRunStatus: "succeeded",
+            createdAt: "2026-04-27T08:00:00.000Z",
+            updatedAt: "2026-04-27T08:00:00.000Z"
+          }
+        ],
+        runs: [
+          {
+            id: "run-ok",
+            occurrenceKey: "task-ok:2026-04-27T08:00:00.000Z",
+            taskId: "task-ok",
+            workspaceKey: workspaceBKey,
+            scheduledFor: "2026-04-27T08:00:00.000Z",
+            startedAt: "2026-04-27T08:00:01.000Z",
+            finishedAt: "2026-04-27T08:00:10.000Z",
+            status: "succeeded",
+            outcomeSummary: "ok",
+            failureReason: null,
+            retryOfRunId: null,
+            executionRequest: null
+          }
+        ],
+        executionProfile: null,
+        updatedAt: "2026-04-27T08:00:00.000Z"
+      });
+
+      const filtered = await buildGlobalDashboardSnapshot({ sortBy: "urgency", status: "problem" });
+      expect(filtered.jobs).toHaveLength(1);
+      expect(filtered.jobs[0]?.taskId).toBe("task-failed");
+      expect(filtered.summary.totalJobs).toBe(2);
+      expect(filtered.summary.problemJobs).toBe(1);
+      expect(filtered.summary.workspacesTotal).toBe(2);
+    } finally {
+      process.env.HOME = previousHome;
+      await rm(tempHome, { recursive: true, force: true });
+    }
+  });
+
   it("renders aggregated jobs and degraded workspace warnings", () => {
     const onRefresh = vi.fn();
-    const section = renderGlobalDashboard(snapshot, false, null, { onRefresh });
+    const section = renderGlobalDashboard(
+      snapshot,
+      false,
+      null,
+      { sortBy: "urgency" },
+      {
+        onRefresh,
+        onSetStatusFilter: vi.fn(),
+        onSetWorkspaceFilter: vi.fn(),
+        onSetSortBy: vi.fn()
+      }
+    );
 
     expect(section.textContent).toContain("Global Dashboard");
     expect(section.textContent).toContain("Daily summary");
@@ -157,11 +274,54 @@ describe("global dashboard view", () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
+  it("renders filters, urgency highlighting, and degraded workspace messaging", () => {
+    const handlers = {
+      onRefresh: vi.fn(),
+      onSetStatusFilter: vi.fn(),
+      onSetWorkspaceFilter: vi.fn(),
+      onSetSortBy: vi.fn()
+    };
+    const section = renderGlobalDashboard(
+      snapshot,
+      false,
+      null,
+      { sortBy: "urgency", status: "problem" },
+      handlers
+    );
+
+    const failedRow = section.querySelector<HTMLElement>('.wsp-global-job[data-problem="true"]');
+    expect(failedRow?.textContent).toContain("Needs attention");
+
+    const statusSelect = section.querySelector<HTMLSelectElement>('select[name="statusFilter"]');
+    statusSelect!.value = "failed";
+    statusSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(handlers.onSetStatusFilter).toHaveBeenCalledWith("failed");
+
+    const sortSelect = section.querySelector<HTMLSelectElement>('select[name="sortBy"]');
+    sortSelect!.value = "name";
+    sortSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(handlers.onSetSortBy).toHaveBeenCalledWith("name");
+
+    expect(section.textContent).toContain("Workspace path is unavailable.");
+  });
+
   it("renders loading and error states", () => {
-    const loading = renderGlobalDashboard(null, true, null, { onRefresh: vi.fn() });
+    const loading = renderGlobalDashboard(
+      null,
+      true,
+      null,
+      { sortBy: "urgency" },
+      { onRefresh: vi.fn(), onSetStatusFilter: vi.fn(), onSetWorkspaceFilter: vi.fn(), onSetSortBy: vi.fn() }
+    );
     expect(loading.textContent).toContain("Loading global dashboard");
 
-    const failure = renderGlobalDashboard(null, false, "Refresh failed.", { onRefresh: vi.fn() });
+    const failure = renderGlobalDashboard(
+      null,
+      false,
+      "Refresh failed.",
+      { sortBy: "urgency" },
+      { onRefresh: vi.fn(), onSetStatusFilter: vi.fn(), onSetWorkspaceFilter: vi.fn(), onSetSortBy: vi.fn() }
+    );
     expect(failure.textContent).toContain("Refresh failed.");
   });
 
@@ -169,7 +329,7 @@ describe("global dashboard view", () => {
     const api: PluginAPI = {
       context: {
         theme: "light",
-        project: { name: "alpha", path: "/tmp/alpha" },
+        project: null,
         session: null
       },
       onContextChange: () => () => undefined,
@@ -192,10 +352,6 @@ describe("global dashboard view", () => {
     const container = document.createElement("div");
     const app = new WorkspaceScheduledPromptsApp(container, api);
     await app.mount();
-
-    const buttons = [...container.querySelectorAll<HTMLButtonElement>(".wsp-tab")];
-    const globalButton = buttons.find((button) => button.textContent === "Global");
-    globalButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(container.textContent).toContain("Global Dashboard");
     expect(container.textContent).toContain("Daily summary");
@@ -238,6 +394,55 @@ describe("global dashboard view", () => {
     expect(globalRequestCount).toBe(1);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(globalRequestCount).toBe(2);
+
+    app.unmount();
+  });
+
+  it("wires global filter changes into the backend query", async () => {
+    const rpcCalls: string[] = [];
+    const api: PluginAPI = {
+      context: {
+        theme: "light",
+        project: null,
+        session: null
+      },
+      onContextChange: () => () => undefined,
+      rpc: async (method, path) => {
+        rpcCalls.push(`${method} ${path}`);
+        if (method === "GET" && path.startsWith("/v1/global-dashboard")) {
+          return snapshot;
+        }
+        if (method === "GET" && path.startsWith("/v1/workspace-state")) {
+          return {
+            capability: { status: "needs_config", message: "Configure execution." },
+            executionProfile: null,
+            tasks: [],
+            runs: []
+          };
+        }
+        throw new Error(`Unexpected RPC: ${method} ${path}`);
+      }
+    };
+
+    const container = document.createElement("div");
+    const app = new WorkspaceScheduledPromptsApp(container, api);
+    await app.mount();
+
+    const statusSelect = container.querySelector<HTMLSelectElement>('select[name="statusFilter"]');
+    statusSelect!.value = "problem";
+    statusSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const sortSelect = container.querySelector<HTMLSelectElement>('select[name="sortBy"]');
+    sortSelect!.value = "name";
+    sortSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(rpcCalls.some((call) => call.includes("/v1/global-dashboard?sortBy=urgency"))).toBe(true);
+    expect(rpcCalls.some((call) => call.includes("/v1/global-dashboard?status=problem&sortBy=urgency"))).toBe(true);
+    expect(rpcCalls.some((call) => call.includes("/v1/global-dashboard?status=problem&sortBy=name"))).toBe(true);
 
     app.unmount();
   });

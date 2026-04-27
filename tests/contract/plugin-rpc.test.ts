@@ -206,4 +206,47 @@ describe("plugin RPC contracts", () => {
     expect(response.summary.totalJobs).toBe(1);
     expect(response.partialData).toBe(false);
   });
+
+  it("supports all documented global sorts and workspace availability states", () => {
+    expect(parseGlobalDashboardQuery(new URLSearchParams({ sortBy: "next_run" })).sortBy).toBe("next_run");
+    expect(parseGlobalDashboardQuery(new URLSearchParams({ sortBy: "workspace" })).sortBy).toBe("workspace");
+    expect(parseGlobalDashboardQuery(new URLSearchParams({ sortBy: "name" })).sortBy).toBe("name");
+
+    const response: GlobalDashboardResponse = {
+      generatedAt: "2026-04-27T08:00:00.000Z",
+      summary: {
+        totalJobs: 3,
+        activeJobs: 2,
+        pausedJobs: 1,
+        problemJobs: 2,
+        workspacesTotal: 2,
+        workspacesDegraded: 1
+      },
+      jobs: [],
+      workspaces: [
+        {
+          workspaceKey: "workspace-1",
+          workspacePath: "/tmp/alpha",
+          workspaceLabel: "alpha",
+          status: "available",
+          jobCount: 2,
+          warning: null
+        },
+        {
+          workspaceKey: "workspace-2",
+          workspacePath: "/tmp/beta",
+          workspaceLabel: "beta",
+          status: "partial",
+          jobCount: 1,
+          warning: "Workspace path is unavailable."
+        }
+      ],
+      partialData: true,
+      warnings: ["Workspace path is unavailable."]
+    };
+
+    expect(response.summary.problemJobs).toBe(2);
+    expect(response.workspaces[1]?.status).toBe("partial");
+    expect(response.workspaces[1]?.warning).toContain("unavailable");
+  });
 });

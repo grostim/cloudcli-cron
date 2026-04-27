@@ -1,11 +1,38 @@
-import type { GlobalDashboardSnapshot, GlobalJobRecord, WorkspaceAvailabilityState } from "../../shared/model.js";
+import type {
+  GlobalDashboardFilter,
+  GlobalDashboardSortBy,
+  GlobalDashboardSnapshot,
+  GlobalDashboardStatusFilter,
+  GlobalJobRecord,
+  WorkspaceAvailabilityState
+} from "../../shared/model.js";
 
 export interface GlobalDashboardHandlers {
   onRefresh(): void;
+  onSetStatusFilter(status?: GlobalDashboardStatusFilter): void;
+  onSetWorkspaceFilter(workspaceKey?: string): void;
+  onSetSortBy(sortBy: GlobalDashboardSortBy): void;
 }
 
 function statusLabel(job: GlobalJobRecord): string {
   return job.lastRunStatus.replace(/_/gu, " ");
+}
+
+function isProblemJob(job: GlobalJobRecord): boolean {
+  return (
+    job.workspaceAvailability !== "available" ||
+    job.lastRunStatus === "failed" ||
+    job.lastRunStatus === "missed" ||
+    job.lastRunStatus === "paused" ||
+    job.lastRunStatus === "never_run" ||
+    (job.enabled && !job.nextRunAt)
+  );
+}
+
+function workspaceLabel(workspace: WorkspaceAvailabilityState): string {
+  return workspace.status === "available"
+    ? `${workspace.workspaceLabel} (${workspace.jobCount})`
+    : `${workspace.workspaceLabel} (${workspace.status})`;
 }
 
 function renderWorkspaceSummary(workspaces: WorkspaceAvailabilityState[]): HTMLElement {
@@ -16,20 +43,22 @@ function renderWorkspaceSummary(workspaces: WorkspaceAvailabilityState[]): HTMLE
     const item = document.createElement("div");
     item.className = "wsp-global-workspace-pill";
     item.dataset.status = workspace.status;
-    item.textContent =
-      workspace.status === "available"
-        ? `${workspace.workspaceLabel} (${workspace.jobCount})`
-        : `${workspace.workspaceLabel} (${workspace.status})`;
+    item.textContent = workspaceLabel(workspace);
     wrapper.append(item);
   }
 
   return wrapper;
 }
 
+function buildSelectOption(value: string, label: string, selected: boolean): string {
+  return `<option value="${value}"${selected ? " selected" : ""}>${label}</option>`;
+}
+
 export function renderGlobalDashboard(
   snapshot: GlobalDashboardSnapshot | null,
   busy: boolean,
   error: string | null,
+  filters: GlobalDashboardFilter,
   handlers: GlobalDashboardHandlers
 ): HTMLElement {
   const section = document.createElement("section");
@@ -68,10 +97,58 @@ export function renderGlobalDashboard(
     return section;
   }
 
+  const controls = document.createElement("div");
+  controls.className = "wsp-global-controls";
+  controls.innerHTML = `
+    <label class="wsp-field">
+      <span>Status</span>
+      <select name="statusFilter">
+        ${buildSelectOption("", "All statuses", filters.status === undefined)}
+        ${buildSelectOption("problem", "Problem jobs", filters.status === "problem")}
+        ${buildSelectOption("healthy", "Healthy", filters.status === "healthy")}
+        ${buildSelectOption("paused", "Paused", filters.status === "paused")}
+        ${buildSelectOption("running", "Running", filters.status === "running")}
+        ${buildSelectOption("failed", "Failed", filters.status === "failed")}
+        ${buildSelectOption("missed", "Missed", filters.status === "missed")}
+        ${buildSelectOption("never_run", "Never run", filters.status === "never_run")}
+      </select>
+    </label>
+    <label class="wsp-field">
+      <span>Workspace</span>
+      <select name="workspaceFilter">
+        ${buildSelectOption("", "All workspaces", filters.workspaceKey === undefined)}
+        ${snapshot.workspaces
+          .map((workspace) =>
+            buildSelectOption(workspace.workspaceKey, workspace.workspaceLabel, filters.workspaceKey === workspace.workspaceKey)
+          )
+          .join("")}
+      </select>
+    </label>
+    <label class="wsp-field">
+      <span>Sort</span>
+      <select name="sortBy">
+        ${buildSelectOption("urgency", "Urgency", filters.sortBy === "urgency")}
+        ${buildSelectOption("next_run", "Next run", filters.sortBy === "next_run")}
+        ${buildSelectOption("workspace", "Workspace", filters.sortBy === "workspace")}
+        ${buildSelectOption("name", "Name", filters.sortBy === "name")}
+      </select>
+    </label>
+  `;
+  section.append(controls);
+
+  const statusSelect = controls.querySelector<HTMLSelectElement>('select[name="statusFilter"]');
+  const workspaceSelect = controls.querySelector<HTMLSelectElement>('select[name="workspaceFilter"]');
+  const sortSelect = controls.querySelector<HTMLSelectElement>('select[name="sortBy"]');
+  statusSelect?.addEventListener("change", () => handlers.onSetStatusFilter(statusSelect.value ? (statusSelect.value as GlobalDashboardStatusFilter) : undefined));
+  workspaceSelect?.addEventListener("change", () => handlers.onSetWorkspaceFilter(workspaceSelect.value || undefined));
+  sortSelect?.addEventListener("change", () => handlers.onSetSortBy(sortSelect.value as GlobalDashboardSortBy));
+
   const summary = document.createElement("div");
   summary.className = "wsp-global-summary";
   summary.innerHTML = `
     <div class="wsp-global-card"><strong>${snapshot.summary.totalJobs}</strong><span>Total jobs</span></div>
+    <div class="wsp-global-card"><strong>${snapshot.summary.activeJobs}</strong><span>Active jobs</span></div>
+    <div class="wsp-global-card"><strong>${snapshot.summary.pausedJobs}</strong><span>Paused jobs</span></div>
     <div class="wsp-global-card"><strong>${snapshot.summary.problemJobs}</strong><span>Problem jobs</span></div>
     <div class="wsp-global-card"><strong>${snapshot.summary.workspacesDegraded}</strong><span>Degraded workspaces</span></div>
   `;
@@ -81,10 +158,24 @@ export function renderGlobalDashboard(
   if (snapshot.partialData || snapshot.warnings.length) {
     const warning = document.createElement("div");
     warning.className = "wsp-banner wsp-banner-info";
-    warning.innerHTML = `
-      <strong>Partial data</strong>
-      <span>${snapshot.warnings[0] ?? "One or more workspaces could not be read completely."}</span>
-    `;
+    const title = document.createElement("strong");
+    title.textContent = "Partial data";
+    warning.append(title);
+
+    const intro = document.createElement("span");
+    intro.textContent = snapshot.warnings[0] ?? "One or more workspaces could not be read completely.";
+    warning.append(intro);
+
+    if (snapshot.warnings.length > 1) {
+      const list = document.createElement("ul");
+      list.className = "wsp-global-warning-list";
+      for (const entry of snapshot.warnings) {
+        const item = document.createElement("li");
+        item.textContent = entry;
+        list.append(item);
+      }
+      warning.append(list);
+    }
     section.append(warning);
   }
 
@@ -103,6 +194,9 @@ export function renderGlobalDashboard(
     item.className = "wsp-global-job";
     item.dataset.status = job.lastRunStatus;
     item.dataset.workspaceAvailability = job.workspaceAvailability;
+    if (isProblemJob(job)) {
+      item.setAttribute("data-problem", "true");
+    }
     item.innerHTML = `
       <div class="wsp-task-head">
         <div>
@@ -115,6 +209,8 @@ export function renderGlobalDashboard(
         <span>${job.recurrenceSummary}</span>
         <span>Next run: ${job.nextRunAt ?? "Not scheduled"}</span>
         <span>Workspace: ${job.workspaceAvailability}</span>
+        ${job.lastRunFinishedAt ? `<span>Last finished: ${job.lastRunFinishedAt}</span>` : ""}
+        ${isProblemJob(job) ? `<span>Needs attention</span>` : ""}
       </div>
     `;
     list.append(item);

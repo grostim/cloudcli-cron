@@ -95,7 +95,7 @@ function buildJobRecord(
   };
 }
 
-function isProblemJob(job: GlobalJobRecord): boolean {
+export function isProblemJob(job: GlobalJobRecord): boolean {
   if (job.workspaceAvailability !== "available") {
     return true;
   }
@@ -196,13 +196,16 @@ export async function buildGlobalDashboardSnapshot(
   filter: GlobalDashboardFilter
 ): Promise<GlobalDashboardSnapshot> {
   const workspaceRecords = await listWorkspaceLedgerRecords();
-  const warnings = workspaceRecords
-    .map((workspace) => workspace.warning)
+  const scopedWorkspaces = filter.workspaceKey
+    ? workspaceRecords.filter((workspace) => workspace.workspaceKey === filter.workspaceKey)
+    : workspaceRecords;
+  const warnings = scopedWorkspaces
+    .map((workspace) => (workspace.warning ? `${workspace.workspaceLabel}: ${workspace.warning}` : null))
     .filter((warning): warning is string => Boolean(warning));
 
   const allJobs: GlobalJobRecord[] = [];
 
-  for (const workspace of workspaceRecords) {
+  for (const workspace of scopedWorkspaces) {
     const ledger = workspace.ledger;
     if (!ledger) {
       continue;
@@ -214,16 +217,15 @@ export async function buildGlobalDashboardSnapshot(
     }
   }
 
-  const jobs = allJobs
-    .filter((job) => (filter.workspaceKey ? job.workspaceKey === filter.workspaceKey : true))
+  const visibleJobs = allJobs
     .filter((job) => matchesStatusFilter(job, filter.status))
     .sort((left, right) => compareJobs(filter.sortBy, left, right));
 
   return {
     generatedAt: new Date().toISOString(),
-    summary: buildSummary(workspaceRecords, jobs),
-    jobs,
-    workspaces: workspaceRecords.map((workspace) => ({
+    summary: buildSummary(scopedWorkspaces, allJobs),
+    jobs: visibleJobs,
+    workspaces: scopedWorkspaces.map((workspace) => ({
       workspaceKey: workspace.workspaceKey,
       workspacePath: workspace.workspacePath,
       workspaceLabel: workspace.workspaceLabel,
@@ -231,7 +233,7 @@ export async function buildGlobalDashboardSnapshot(
       jobCount: workspace.jobCount,
       warning: workspace.warning
     })),
-    partialData: workspaceRecords.some((workspace) => workspace.status !== "available"),
+    partialData: scopedWorkspaces.some((workspace) => workspace.status !== "available"),
     warnings
   };
 }

@@ -21,6 +21,23 @@ function createApi(): PluginAPI {
           runs: []
         };
       }
+      if (method === "GET" && path.startsWith("/v1/global-dashboard")) {
+        return {
+          generatedAt: "2026-04-27T08:00:00.000Z",
+          summary: {
+            totalJobs: 0,
+            activeJobs: 0,
+            pausedJobs: 0,
+            problemJobs: 0,
+            workspacesTotal: 0,
+            workspacesDegraded: 0
+          },
+          jobs: [],
+          workspaces: [],
+          partialData: false,
+          warnings: []
+        };
+      }
       throw new Error(`Unexpected RPC: ${method} ${path}`);
     }
   };
@@ -46,5 +63,7 @@ describe("app reconciliation", () => {
 
     expect(container.textContent).toContain("Reload failed.");
     expect(container.textContent).not.toContain("Schedule deleted.");
+
+    app.unmount();
   });
 });

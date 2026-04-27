@@ -73,16 +73,16 @@
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Extend contract tests for summary counters, filters, sort keys, and workspace availability states in `tests/contract/plugin-rpc.test.ts`
-- [ ] T020 [P] [US2] Add integration coverage for problematic-job classification and partial-data warnings in `tests/integration/global-dashboard.test.ts`
-- [ ] T021 [P] [US2] Add frontend jsdom coverage for dashboard filters, urgency ordering, and degraded workspace messaging in `tests/integration/global-dashboard.test.ts`
+- [X] T019 [P] [US2] Extend contract tests for summary counters, filters, sort keys, and workspace availability states in `tests/contract/plugin-rpc.test.ts`
+- [X] T020 [P] [US2] Add integration coverage for problematic-job classification and partial-data warnings in `tests/integration/global-dashboard.test.ts`
+- [X] T021 [P] [US2] Add frontend jsdom coverage for dashboard filters, urgency ordering, and degraded workspace messaging in `tests/integration/global-dashboard.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T022 [P] [US2] Implement summary counter calculation, urgency ordering, and filter application in `src/server/dashboard.ts`
-- [ ] T023 [P] [US2] Implement degraded workspace warnings and partial-data summary shaping in `src/server/dashboard.ts` and `src/server/storage.ts`
-- [ ] T024 [P] [US2] Build dashboard summary cards, status filters, and degraded workspace indicators in `src/client/views/global-dashboard.ts`
-- [ ] T025 [US2] Wire client-side filter state, server query parameters, and problem-job highlighting in `src/client/app.ts`, `src/client/api.ts`, and `src/client/state.ts`
+- [X] T022 [P] [US2] Implement summary counter calculation, urgency ordering, and filter application in `src/server/dashboard.ts`
+- [X] T023 [P] [US2] Implement degraded workspace warnings and partial-data summary shaping in `src/server/dashboard.ts` and `src/server/storage.ts`
+- [X] T024 [P] [US2] Build dashboard summary cards, status filters, and degraded workspace indicators in `src/client/views/global-dashboard.ts`
+- [X] T025 [US2] Wire client-side filter state, server query parameters, and problem-job highlighting in `src/client/app.ts`, `src/client/api.ts`, and `src/client/state.ts`
 
 **Checkpoint**: User Stories 1 and 2 both work independently, including degraded workspace visibility and problem-job filtering.
 

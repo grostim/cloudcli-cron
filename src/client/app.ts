@@ -1,14 +1,16 @@
-import type { CreateTaskRequest, UpdateTaskRequest } from "../shared/contracts.js";
-import type { WorkspaceTask } from "../shared/model.js";
+import type { CreateTaskRequest, GlobalDashboardActionResponse, UpdateTaskRequest } from "../shared/contracts.js";
+import type { GlobalDashboardFilter, GlobalJobRunStatus, WorkspaceTask } from "../shared/model.js";
 import type { PluginAPI } from "../types.js";
 import { PluginRpcClient } from "./api.js";
 import { AppStateStore, DEFAULT_CAPABILITY } from "./state.js";
 import { renderExecutionBanner } from "./views/execution-banner.js";
+import { renderGlobalDashboard } from "./views/global-dashboard.js";
 import { renderRunHistory } from "./views/run-history.js";
 import { renderScheduleList } from "./views/schedule-list.js";
 import { renderTaskForm } from "./views/task-form.js";
 
 const STYLE_ID = "workspace-scheduled-prompts-styles";
+const GLOBAL_REFRESH_INTERVAL_MS = 60_000;
 
 function ensureStyles(): void {
   if (document.getElementById(STYLE_ID)) {
@@ -59,6 +61,30 @@ function ensureStyles(): void {
     .workspace-scheduled-prompts p { margin: 0; }
 
     .wsp-shell { display: grid; gap: 16px; }
+    .wsp-tabs {
+      display: inline-flex;
+      gap: 8px;
+      padding: 4px;
+      border: 1px solid var(--wsp-border);
+      border-radius: 12px;
+      background: var(--wsp-bg);
+    }
+    .wsp-tab {
+      border: 0;
+      background: transparent;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .wsp-tab[data-active="true"] {
+      background: var(--wsp-panel);
+      box-shadow: inset 0 0 0 1px var(--wsp-border);
+      color: var(--wsp-accent);
+    }
+    .wsp-tab:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .wsp-header {
       display: flex;
       justify-content: space-between;
@@ -262,7 +288,8 @@ function ensureStyles(): void {
     }
 
     .schedule-list ul,
-    .run-history ul {
+    .run-history ul,
+    .wsp-global-job-list {
       list-style: none;
       padding: 0;
       margin: 12px 0 0;
@@ -301,10 +328,82 @@ function ensureStyles(): void {
       padding: 7px 10px;
       font-size: 12px;
     }
+    .wsp-global-dashboard { display: grid; gap: 14px; }
+    .wsp-global-dashboard-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .wsp-global-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .wsp-global-controls .wsp-field > span {
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .wsp-global-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .wsp-global-card,
+    .wsp-global-workspace-pill {
+      padding: 12px 14px;
+      border: 1px solid var(--wsp-border);
+      border-radius: 10px;
+      background: var(--wsp-bg);
+    }
+    .wsp-global-card strong {
+      display: block;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .wsp-global-card span {
+      color: var(--wsp-muted);
+      font-size: 12px;
+    }
+    .wsp-global-workspaces {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .wsp-global-warning-list {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: inherit;
+    }
+    .wsp-global-workspace-pill[data-status="partial"] {
+      border-color: var(--wsp-accent);
+    }
+    .wsp-global-workspace-pill[data-status="unavailable"] {
+      border-color: var(--wsp-danger);
+      color: var(--wsp-danger);
+    }
+    .wsp-global-job {
+      border: 1px solid var(--wsp-border);
+      border-radius: 10px;
+      background: var(--wsp-bg);
+      padding: 12px;
+    }
+    .wsp-global-job[data-problem="true"] {
+      border-color: var(--wsp-danger);
+      box-shadow: inset 0 0 0 1px rgba(180, 35, 24, 0.16);
+    }
+    .wsp-global-job[data-workspace-availability="partial"] {
+      border-color: var(--wsp-accent);
+    }
+    .wsp-global-job[data-workspace-availability="unavailable"] {
+      border-color: var(--wsp-danger);
+    }
 
     @media (max-width: 900px) {
       .wsp-main,
-      .wsp-form-grid {
+      .wsp-form-grid,
+      .wsp-global-controls,
+      .wsp-global-summary {
         grid-template-columns: 1fr;
       }
       .wsp-field-span-2,
@@ -320,6 +419,21 @@ function ensureStyles(): void {
   document.head.append(style);
 }
 
+function normalizeGlobalRunStatus(
+  status: WorkspaceTask["lastRunStatus"],
+  fallback: GlobalJobRunStatus
+): GlobalJobRunStatus {
+  switch (status) {
+    case "running":
+    case "succeeded":
+    case "failed":
+    case "missed":
+      return status;
+    default:
+      return fallback;
+  }
+}
+
 function renderBanner(kind: "error" | "success" | "info", title: string, message: string): HTMLElement {
   const banner = document.createElement("div");
   banner.className = `wsp-banner wsp-banner-${kind}`;
@@ -331,6 +445,7 @@ export class WorkspaceScheduledPromptsApp {
   private readonly rpc: PluginRpcClient;
   private readonly state = new AppStateStore();
   private unsubscribe: (() => void) | null = null;
+  private globalRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly container: HTMLElement, private readonly api: PluginAPI) {
     this.rpc = new PluginRpcClient(api);
@@ -339,18 +454,185 @@ export class WorkspaceScheduledPromptsApp {
   async mount(): Promise<void> {
     ensureStyles();
     this.unsubscribe = this.state.subscribe(() => this.render());
-    await this.loadFromContext(this.api.context.project?.path ?? null);
+    this.state.patch({
+      activeTab: this.api.context.project?.path ? "workspace" : "global"
+    });
+    await Promise.all([
+      this.loadFromContext(this.api.context.project?.path ?? null),
+      this.loadGlobalDashboard()
+    ]);
+    this.startGlobalRefreshTimer();
   }
 
   unmount(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    if (this.globalRefreshTimer) {
+      clearInterval(this.globalRefreshTimer);
+      this.globalRefreshTimer = null;
+    }
     this.container.innerHTML = "";
+  }
+
+  private startGlobalRefreshTimer(): void {
+    if (this.globalRefreshTimer) {
+      return;
+    }
+    this.globalRefreshTimer = setInterval(() => {
+      if (this.state.snapshot.activeTab !== "global") {
+        return;
+      }
+      void this.loadGlobalDashboard(true);
+    }, GLOBAL_REFRESH_INTERVAL_MS);
+  }
+
+  private async loadGlobalDashboard(silent = false): Promise<boolean> {
+    if (!silent) {
+      this.state.patch({ globalBusy: true, globalError: null });
+    }
+
+    try {
+      const snapshot = await this.rpc.loadGlobalDashboard(this.state.snapshot.globalFilters);
+      this.state.patch({
+        globalSnapshot: snapshot,
+        globalBusy: false,
+        globalError: null
+      });
+      return true;
+    } catch (error) {
+      this.state.patch({
+        globalBusy: false,
+        globalError: error instanceof Error ? error.message : "Failed to load global dashboard."
+      });
+      return false;
+    }
+  }
+
+  private updateGlobalSnapshotFromAction(response: GlobalDashboardActionResponse): void {
+    const snapshot = this.state.snapshot.globalSnapshot;
+    if (!snapshot) {
+      return;
+    }
+
+    const jobs = snapshot.jobs.map((job) => {
+      if (job.workspaceKey !== response.task.workspaceKey || job.taskId !== response.task.id) {
+        return job;
+      }
+
+      return {
+        ...job,
+        name: response.task.name,
+        workspacePath: response.task.workspacePath,
+        enabled: response.task.enabled,
+        nextRunAt: response.task.nextRunAt,
+        lastRunStatus: normalizeGlobalRunStatus(response.task.lastRunStatus, job.lastRunStatus),
+        lastRunFinishedAt: response.run?.finishedAt ?? job.lastRunFinishedAt
+      };
+    });
+
+    this.state.patch({
+      globalSnapshot: {
+        ...snapshot,
+        jobs
+      }
+    });
+  }
+
+  private async focusWorkspace(workspacePath: string, taskId: string | null = null): Promise<void> {
+    const loaded = await this.loadFromContext(workspacePath);
+    await this.loadGlobalDashboard(true);
+    if (!loaded) {
+      return;
+    }
+
+    this.state.patch({
+      activeTab: "workspace",
+      error: null,
+      successMessage: null,
+      globalError: null,
+      highlightedTaskId: taskId
+    });
+  }
+
+  private async dispatchGlobalAction(
+    action: "run_now" | "pause" | "resume" | "retry",
+    workspaceKey: string,
+    taskId: string,
+    runId?: string
+  ): Promise<void> {
+    this.state.patch({
+      globalPendingActionKey: `${workspaceKey}:${taskId}:${action}`,
+      error: null,
+      successMessage: null,
+      globalError: null
+    });
+
+    try {
+      let response: GlobalDashboardActionResponse;
+      switch (action) {
+        case "run_now":
+          response = await this.rpc.globalRunNow(workspaceKey, taskId);
+          break;
+        case "pause":
+          response = await this.rpc.globalPauseTask(workspaceKey, taskId);
+          break;
+        case "resume":
+          response = await this.rpc.globalResumeTask(workspaceKey, taskId);
+          break;
+        case "retry":
+          if (!runId) {
+            throw new Error("Missing retry target.");
+          }
+          response = await this.rpc.globalRetryTask(workspaceKey, taskId, { runId });
+          break;
+      }
+
+      this.updateGlobalSnapshotFromAction(response);
+      if (this.state.snapshot.workspacePath === response.task.workspacePath) {
+        const refreshed = await this.loadFromContext(response.task.workspacePath);
+        if (refreshed) {
+          this.state.patch({ highlightedTaskId: response.task.id });
+        }
+      }
+      await this.loadGlobalDashboard(true);
+      const messageByAction: Record<typeof action, string> = {
+        run_now: `Manual run finished for "${response.task.name}".`,
+        pause: `Schedule "${response.task.name}" paused.`,
+        resume: `Schedule "${response.task.name}" resumed.`,
+        retry: `Retry finished for "${response.task.name}".`
+      };
+      this.state.patch({
+        successMessage: messageByAction[action],
+        error: null
+      });
+    } catch (error) {
+      this.state.patch({
+        error: error instanceof Error ? error.message : "Failed to perform the global action.",
+        successMessage: null
+      });
+    } finally {
+      this.state.patch({ globalPendingActionKey: null });
+    }
+  }
+
+  private async updateGlobalFilters(
+    patch: Partial<GlobalDashboardFilter>
+  ): Promise<void> {
+    const nextFilters = {
+      ...this.state.snapshot.globalFilters,
+      ...patch
+    };
+    this.state.patch({
+      globalFilters: nextFilters,
+      globalError: null
+    });
+    await this.loadGlobalDashboard();
   }
 
   async loadFromContext(workspacePath: string | null): Promise<boolean> {
     if (!workspacePath) {
       this.state.replace({
+        activeTab: "global",
         workspacePath: null,
         tasks: [],
         runs: [],
@@ -360,7 +642,12 @@ export class WorkspaceScheduledPromptsApp {
         error: null,
         successMessage: null,
         editingTaskId: null,
-        highlightedTaskId: null
+        highlightedTaskId: null,
+        globalSnapshot: this.state.snapshot.globalSnapshot,
+        globalFilters: this.state.snapshot.globalFilters,
+        globalBusy: this.state.snapshot.globalBusy,
+        globalError: this.state.snapshot.globalError,
+        globalPendingActionKey: this.state.snapshot.globalPendingActionKey
       });
       return true;
     }
@@ -408,6 +695,7 @@ export class WorkspaceScheduledPromptsApp {
     highlightedTaskId: string | null
   ): Promise<void> {
     const refreshed = await this.loadFromContext(workspacePath);
+    await this.loadGlobalDashboard(true);
     if (!refreshed) {
       return;
     }
@@ -432,6 +720,7 @@ export class WorkspaceScheduledPromptsApp {
       successMessage: `Schedule "${response.task.name}" created.`,
       highlightedTaskId: response.task.id
     });
+    await this.loadGlobalDashboard(true);
   }
 
   private async handleSaveTask(request: Omit<CreateTaskRequest, "workspacePath">): Promise<void> {
@@ -460,6 +749,7 @@ export class WorkspaceScheduledPromptsApp {
       successMessage: `Schedule "${response.task.name}" updated.`,
       highlightedTaskId: response.task.id
     });
+    await this.loadGlobalDashboard(true);
   }
 
   private render(): void {
@@ -475,13 +765,40 @@ export class WorkspaceScheduledPromptsApp {
     heading.innerHTML = `
       <div>
         <h1>Scheduled Prompt</h1>
-        <p>Create, review, and monitor scheduled prompts for the active workspace.</p>
+        <p>${snapshot.activeTab === "global"
+          ? "Monitor scheduled jobs across all known workspaces."
+          : "Create, review, and monitor scheduled prompts for the active workspace."}</p>
       </div>
       <div class="wsp-workspace-chip">
-        ${snapshot.workspacePath ?? "No workspace selected"}
+        ${snapshot.activeTab === "global" ? "Global overview" : snapshot.workspacePath ?? "No workspace selected"}
       </div>
     `;
     root.append(heading);
+
+    const tabs = document.createElement("div");
+    tabs.className = "wsp-tabs";
+    const globalTab = document.createElement("button");
+    globalTab.type = "button";
+    globalTab.className = "wsp-tab";
+    globalTab.dataset.active = String(snapshot.activeTab === "global");
+    globalTab.textContent = "Global";
+    globalTab.addEventListener("click", () => {
+      this.state.patch({ activeTab: "global", error: null, successMessage: null });
+      void this.loadGlobalDashboard();
+    });
+    tabs.append(globalTab);
+
+    const workspaceTab = document.createElement("button");
+    workspaceTab.type = "button";
+    workspaceTab.className = "wsp-tab";
+    workspaceTab.dataset.active = String(snapshot.activeTab === "workspace");
+    workspaceTab.textContent = "Workspace";
+    workspaceTab.disabled = !snapshot.workspacePath;
+    workspaceTab.addEventListener("click", () => {
+      this.state.patch({ activeTab: "workspace", error: null, successMessage: null });
+    });
+    tabs.append(workspaceTab);
+    root.append(tabs);
 
     if (snapshot.error) {
       root.append(renderBanner("error", "Action required", snapshot.error));
@@ -500,6 +817,51 @@ export class WorkspaceScheduledPromptsApp {
 
     const main = document.createElement("div");
     main.className = "wsp-main";
+
+    if (snapshot.activeTab === "global") {
+      main.style.gridTemplateColumns = "minmax(0, 1fr)";
+      main.append(
+        renderGlobalDashboard(
+          snapshot.globalSnapshot,
+          snapshot.globalBusy,
+          snapshot.globalError,
+          snapshot.globalFilters,
+          {
+            onRefresh: () => {
+              void this.loadGlobalDashboard();
+            },
+            onSetStatusFilter: (status) => {
+              void this.updateGlobalFilters({ status });
+            },
+            onSetWorkspaceFilter: (workspaceKey) => {
+              void this.updateGlobalFilters({ workspaceKey });
+            },
+            onSetSortBy: (sortBy) => {
+              void this.updateGlobalFilters({ sortBy });
+            },
+            onOpenWorkspace: (workspacePath, taskId) => {
+              void this.focusWorkspace(workspacePath, taskId);
+            },
+            onRunNow: (workspaceKey, taskId) => {
+              void this.dispatchGlobalAction("run_now", workspaceKey, taskId);
+            },
+            onPause: (workspaceKey, taskId) => {
+              void this.dispatchGlobalAction("pause", workspaceKey, taskId);
+            },
+            onResume: (workspaceKey, taskId) => {
+              void this.dispatchGlobalAction("resume", workspaceKey, taskId);
+            },
+            onRetry: (workspaceKey, taskId, runId) => {
+              void this.dispatchGlobalAction("retry", workspaceKey, taskId, runId);
+            }
+          },
+          snapshot.globalPendingActionKey
+        )
+      );
+      root.append(main);
+      this.container.append(root);
+      return;
+    }
 
     const left = document.createElement("div");
     left.className = "wsp-stack";

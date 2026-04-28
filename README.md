@@ -22,12 +22,26 @@ CloudCLI / ClaudeCodeUI plugin to create workspace-scoped scheduled prompts and 
 
 ## Current Scope
 
-This is the first functional local-only version.
+This is a local-first plugin release focused on workspace-scoped scheduling plus cross-workspace visibility.
 
 - No hosted CloudCLI dependency
 - No direct integration with the host chat session
 - Scheduled executions launch a fresh local CLI process
 - Notifications and cross-workspace orchestration are out of scope
+
+## Global Dashboard
+
+`v0.2.0` adds a dedicated global dashboard tab for cross-workspace visibility.
+
+- aggregated job inventory across known workspaces
+- direct per-job actions from the global view:
+  - `Run Now`
+  - `Pause`
+  - `Resume`
+  - `Retry`
+- degraded workspace warnings
+- workspace drilldown back to the original workspace context
+- partial-data signaling when one or more ledgers cannot be read cleanly
 
 ## Requirements
 

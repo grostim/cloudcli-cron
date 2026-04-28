@@ -2,15 +2,34 @@ import type {
   CreateTaskRequest,
   ExecutionProfileRequest,
   ExecutionProfileResponse,
+  GlobalDashboardActionResponse,
+  GlobalDashboardResponse,
+  GlobalDashboardRetryRequest,
   RunResponse,
   TaskResponse,
   UpdateTaskRequest,
   WorkspaceStateResponse
 } from "../shared/contracts.js";
+import type { GlobalDashboardFilter } from "../shared/model.js";
 import type { PluginAPI } from "../types.js";
 
 export class PluginRpcClient {
   constructor(private readonly api: PluginAPI) {}
+
+  loadGlobalDashboard(query: GlobalDashboardFilter): Promise<GlobalDashboardResponse> {
+    const params = new URLSearchParams();
+    if (query.status) {
+      params.set("status", query.status);
+    }
+    if (query.workspaceKey) {
+      params.set("workspaceKey", query.workspaceKey);
+    }
+    if (query.sortBy) {
+      params.set("sortBy", query.sortBy);
+    }
+
+    return this.api.rpc("GET", `/v1/global-dashboard?${params.toString()}`);
+  }
 
   loadWorkspaceState(workspacePath: string): Promise<WorkspaceStateResponse> {
     return this.api.rpc("GET", `/v1/workspace-state?workspacePath=${encodeURIComponent(workspacePath)}`);
@@ -50,5 +69,38 @@ export class PluginRpcClient {
 
   saveExecutionProfile(request: ExecutionProfileRequest): Promise<ExecutionProfileResponse> {
     return this.api.rpc("PUT", "/v1/execution-profile", request);
+  }
+
+  globalRunNow(workspaceKey: string, taskId: string): Promise<GlobalDashboardActionResponse> {
+    return this.api.rpc(
+      "POST",
+      `/v1/global-jobs/${encodeURIComponent(workspaceKey)}/${encodeURIComponent(taskId)}/actions/run-now`
+    );
+  }
+
+  globalPauseTask(workspaceKey: string, taskId: string): Promise<GlobalDashboardActionResponse> {
+    return this.api.rpc(
+      "POST",
+      `/v1/global-jobs/${encodeURIComponent(workspaceKey)}/${encodeURIComponent(taskId)}/actions/pause`
+    );
+  }
+
+  globalResumeTask(workspaceKey: string, taskId: string): Promise<GlobalDashboardActionResponse> {
+    return this.api.rpc(
+      "POST",
+      `/v1/global-jobs/${encodeURIComponent(workspaceKey)}/${encodeURIComponent(taskId)}/actions/resume`
+    );
+  }
+
+  globalRetryTask(
+    workspaceKey: string,
+    taskId: string,
+    request: GlobalDashboardRetryRequest
+  ): Promise<GlobalDashboardActionResponse> {
+    return this.api.rpc(
+      "POST",
+      `/v1/global-jobs/${encodeURIComponent(workspaceKey)}/${encodeURIComponent(taskId)}/actions/retry`,
+      request
+    );
   }
 }

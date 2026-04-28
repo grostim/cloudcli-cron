@@ -276,4 +276,30 @@ describe("scheduler service integration", () => {
     expect(ledger.runs).toHaveLength(1);
     expect(ledger.runs[0]?.taskId).toBe(task.id);
   });
+
+  it("retries the latest failed run against the same workspace task", async () => {
+    const scheduler = new SchedulerService();
+    const task = await scheduler.createTask({
+      workspacePath,
+      name: "Retry target",
+      prompt: "Retry the workspace.",
+      recurrence: {
+        scheduleType: "daily",
+        timezone: "Europe/Paris",
+        localTime: "09:00"
+      }
+    });
+
+    const failedRun = await scheduler.createManualRun(task.id, workspacePath);
+    expect(failedRun.status).toBe("failed");
+
+    const retriedRun = await scheduler.retryRun(failedRun.id, workspacePath);
+    expect(retriedRun.taskId).toBe(task.id);
+    expect(retriedRun.retryOfRunId).toBe(failedRun.id);
+
+    const ledger = await loadWorkspaceLedger(workspacePath);
+    expect(ledger.runs).toHaveLength(2);
+    expect(ledger.runs[0]?.id).toBe(retriedRun.id);
+    expect(ledger.runs[1]?.id).toBe(failedRun.id);
+  });
 });

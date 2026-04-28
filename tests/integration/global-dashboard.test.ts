@@ -548,6 +548,42 @@ describe("global dashboard view", () => {
     expect(row?.textContent).toContain("<b>alpha</b>");
   });
 
+  it("escapes persisted workspace filter options when rendering global controls", () => {
+    const escapedSnapshot: GlobalDashboardSnapshot = {
+      ...snapshot,
+      workspaces: [
+        {
+          workspaceKey: 'workspace"><img src=x onerror="window.__xss=1">',
+          workspacePath: "/tmp/injected",
+          workspaceLabel: '<b>Injected</b> & "quoted"',
+          status: "available",
+          jobCount: 1,
+          warning: null
+        }
+      ]
+    };
+    const handlers = {
+      onRefresh: vi.fn(),
+      onSetStatusFilter: vi.fn(),
+      onSetWorkspaceFilter: vi.fn(),
+      onSetSortBy: vi.fn(),
+      onOpenWorkspace: vi.fn(),
+      onRunNow: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn(),
+      onRetry: vi.fn()
+    };
+
+    const section = renderGlobalDashboard(escapedSnapshot, false, null, { sortBy: "urgency" }, handlers);
+    const workspaceSelect = section.querySelector<HTMLSelectElement>('select[name="workspaceFilter"]');
+
+    expect(section.querySelector("img")).toBeNull();
+    expect(section.querySelector("b")).toBeNull();
+    expect(workspaceSelect?.options).toHaveLength(2);
+    expect(workspaceSelect?.options[1]?.value).toBe('workspace"><img src=x onerror="window.__xss=1">');
+    expect(workspaceSelect?.options[1]?.textContent).toBe('<b>Injected</b> & "quoted"');
+  });
+
   it("mounts a dedicated global tab and loads the aggregated snapshot", async () => {
     let globalRequestCount = 0;
     const updatedSnapshot: GlobalDashboardSnapshot = {

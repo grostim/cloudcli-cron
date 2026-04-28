@@ -302,6 +302,62 @@ describe("global dashboard aggregation", () => {
     expect(snapshot.summary.problemJobs).toBe(1);
   });
 
+  it("preserves a running status when a task is disabled during execution", async () => {
+    const workspacePath = path.join(tempHome, "workspace-running-disabled");
+    const workspaceKey = workspaceKeyFromPath(workspacePath);
+    await mkdir(workspacePath, { recursive: true });
+
+    await saveWorkspaceLedger({
+      version: 1,
+      workspaceKey,
+      workspacePath,
+      tasks: [
+        {
+          id: "task-running-disabled",
+          workspaceKey,
+          workspacePath,
+          name: "Paused while running",
+          prompt: "Long run",
+          recurrence: {
+            scheduleType: "daily",
+            timezone: "Europe/Paris",
+            localTime: "09:00"
+          },
+          recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+          enabled: false,
+          nextRunAt: "2099-01-01T08:00:00.000Z",
+          lastRunStatus: "running",
+          createdAt: "2026-04-27T08:00:00.000Z",
+          updatedAt: "2026-04-27T08:00:00.000Z"
+        }
+      ],
+      runs: [
+        {
+          id: "run-running",
+          occurrenceKey: "task-running-disabled:2026-04-27T08:00:00.000Z",
+          taskId: "task-running-disabled",
+          workspaceKey,
+          scheduledFor: "2026-04-27T08:00:00.000Z",
+          startedAt: "2026-04-27T08:00:01.000Z",
+          finishedAt: null,
+          status: "running",
+          outcomeSummary: "running",
+          failureReason: null,
+          retryOfRunId: null,
+          executionRequest: null
+        }
+      ],
+      executionProfile: null,
+      updatedAt: "2026-04-27T08:00:00.000Z"
+    });
+
+    const snapshot = await buildGlobalDashboardSnapshot({ sortBy: "urgency", status: "running" });
+
+    expect(snapshot.jobs).toHaveLength(1);
+    expect(snapshot.jobs[0]?.lastRunStatus).toBe("running");
+    expect(snapshot.summary.pausedJobs).toBe(0);
+  });
+
   it("does not classify a completed one-time schedule with no next run as a problem", async () => {
     const workspacePath = path.join(tempHome, "workspace-d");
     const workspaceKey = workspaceKeyFromPath(workspacePath);

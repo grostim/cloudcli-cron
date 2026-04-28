@@ -43,11 +43,15 @@ function deriveTaskStatus(
   runs: ScheduledRun[],
   workspaceAvailability: WorkspaceAvailability
 ): GlobalJobRunStatus {
+  const latest = runs[0];
+  if (latest?.status === "running") {
+    return "running";
+  }
+
   if (!task.enabled) {
     return "paused";
   }
 
-  const latest = runs[0];
   if (!latest) {
     return storedTaskStatus(task);
   }
@@ -57,7 +61,6 @@ function deriveTaskStatus(
   }
 
   switch (latest.status) {
-    case "running":
     case "succeeded":
     case "failed":
     case "missed":

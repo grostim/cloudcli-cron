@@ -60,8 +60,34 @@ function renderWorkspaceSummary(workspaces: WorkspaceAvailabilityState[]): HTMLE
   return wrapper;
 }
 
-function buildSelectOption(value: string, label: string, selected: boolean): string {
-  return `<option value="${value}"${selected ? " selected" : ""}>${label}</option>`;
+function appendSelectOption(select: HTMLSelectElement, value: string, label: string, selected: boolean): void {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  option.selected = selected;
+  select.append(option);
+}
+
+function buildFilterField(
+  fieldLabel: string,
+  selectName: string,
+  options: Array<{ value: string; label: string; selected: boolean }>
+): HTMLLabelElement {
+  const field = document.createElement("label");
+  field.className = "wsp-field";
+
+  const label = document.createElement("span");
+  label.textContent = fieldLabel;
+
+  const select = document.createElement("select");
+  select.name = selectName;
+
+  for (const option of options) {
+    appendSelectOption(select, option.value, option.label, option.selected);
+  }
+
+  field.append(label, select);
+  return field;
 }
 
 function actionButtonLabel(action: "run_now" | "pause" | "resume" | "retry"): string {
@@ -129,41 +155,32 @@ export function renderGlobalDashboard(
 
   const controls = document.createElement("div");
   controls.className = "wsp-global-controls";
-  controls.innerHTML = `
-    <label class="wsp-field">
-      <span>Status</span>
-      <select name="statusFilter">
-        ${buildSelectOption("", "All statuses", filters.status === undefined)}
-        ${buildSelectOption("problem", "Problem jobs", filters.status === "problem")}
-        ${buildSelectOption("healthy", "Healthy", filters.status === "healthy")}
-        ${buildSelectOption("paused", "Paused", filters.status === "paused")}
-        ${buildSelectOption("running", "Running", filters.status === "running")}
-        ${buildSelectOption("failed", "Failed", filters.status === "failed")}
-        ${buildSelectOption("missed", "Missed", filters.status === "missed")}
-        ${buildSelectOption("never_run", "Never run", filters.status === "never_run")}
-      </select>
-    </label>
-    <label class="wsp-field">
-      <span>Workspace</span>
-      <select name="workspaceFilter">
-        ${buildSelectOption("", "All workspaces", filters.workspaceKey === undefined)}
-        ${snapshot.workspaces
-          .map((workspace) =>
-            buildSelectOption(workspace.workspaceKey, workspace.workspaceLabel, filters.workspaceKey === workspace.workspaceKey)
-          )
-          .join("")}
-      </select>
-    </label>
-    <label class="wsp-field">
-      <span>Sort</span>
-      <select name="sortBy">
-        ${buildSelectOption("urgency", "Urgency", filters.sortBy === "urgency")}
-        ${buildSelectOption("next_run", "Next run", filters.sortBy === "next_run")}
-        ${buildSelectOption("workspace", "Workspace", filters.sortBy === "workspace")}
-        ${buildSelectOption("name", "Name", filters.sortBy === "name")}
-      </select>
-    </label>
-  `;
+  controls.append(
+    buildFilterField("Status", "statusFilter", [
+      { value: "", label: "All statuses", selected: filters.status === undefined },
+      { value: "problem", label: "Problem jobs", selected: filters.status === "problem" },
+      { value: "healthy", label: "Healthy", selected: filters.status === "healthy" },
+      { value: "paused", label: "Paused", selected: filters.status === "paused" },
+      { value: "running", label: "Running", selected: filters.status === "running" },
+      { value: "failed", label: "Failed", selected: filters.status === "failed" },
+      { value: "missed", label: "Missed", selected: filters.status === "missed" },
+      { value: "never_run", label: "Never run", selected: filters.status === "never_run" }
+    ]),
+    buildFilterField("Workspace", "workspaceFilter", [
+      { value: "", label: "All workspaces", selected: filters.workspaceKey === undefined },
+      ...snapshot.workspaces.map((workspace) => ({
+        value: workspace.workspaceKey,
+        label: workspace.workspaceLabel,
+        selected: filters.workspaceKey === workspace.workspaceKey
+      }))
+    ]),
+    buildFilterField("Sort", "sortBy", [
+      { value: "urgency", label: "Urgency", selected: filters.sortBy === "urgency" },
+      { value: "next_run", label: "Next run", selected: filters.sortBy === "next_run" },
+      { value: "workspace", label: "Workspace", selected: filters.sortBy === "workspace" },
+      { value: "name", label: "Name", selected: filters.sortBy === "name" }
+    ])
+  );
   section.append(controls);
 
   const statusSelect = controls.querySelector<HTMLSelectElement>('select[name="statusFilter"]');

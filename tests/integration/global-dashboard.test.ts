@@ -516,6 +516,38 @@ describe("global dashboard view", () => {
     expect(pauseButton?.disabled).toBe(false);
   });
 
+  it("escapes persisted job metadata when rendering global rows", () => {
+    const escapedSnapshot: GlobalDashboardSnapshot = {
+      ...snapshot,
+      jobs: [
+        {
+          ...snapshot.jobs[0]!,
+          name: '<img src=x onerror="window.__xss=1">Daily',
+          workspaceLabel: "<b>alpha</b>"
+        }
+      ]
+    };
+    const handlers = {
+      onRefresh: vi.fn(),
+      onSetStatusFilter: vi.fn(),
+      onSetWorkspaceFilter: vi.fn(),
+      onSetSortBy: vi.fn(),
+      onOpenWorkspace: vi.fn(),
+      onRunNow: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn(),
+      onRetry: vi.fn()
+    };
+
+    const section = renderGlobalDashboard(escapedSnapshot, false, null, { sortBy: "urgency" }, handlers);
+    const row = section.querySelector<HTMLElement>('.wsp-global-job[data-task-id="task-1"]');
+
+    expect(row?.querySelector("img")).toBeNull();
+    expect(row?.querySelector("b")).toBeNull();
+    expect(row?.textContent).toContain('<img src=x onerror="window.__xss=1">Daily');
+    expect(row?.textContent).toContain("<b>alpha</b>");
+  });
+
   it("mounts a dedicated global tab and loads the aggregated snapshot", async () => {
     let globalRequestCount = 0;
     const updatedSnapshot: GlobalDashboardSnapshot = {

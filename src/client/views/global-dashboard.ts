@@ -77,6 +77,12 @@ function actionButtonLabel(action: "run_now" | "pause" | "resume" | "retry"): st
   }
 }
 
+function appendMeta(item: HTMLElement, label: string): void {
+  const entry = document.createElement("span");
+  entry.textContent = label;
+  item.append(entry);
+}
+
 export function renderGlobalDashboard(
   snapshot: GlobalDashboardSnapshot | null,
   busy: boolean,
@@ -223,23 +229,35 @@ export function renderGlobalDashboard(
     if (isProblemJob(job)) {
       item.setAttribute("data-problem", "true");
     }
-    item.innerHTML = `
-      <div class="wsp-task-head">
-        <div>
-          <strong>${job.name}</strong>
-          <p>${job.workspaceLabel}</p>
-        </div>
-        <span class="wsp-status-chip">${statusLabel(job)}</span>
-      </div>
-      <div class="wsp-task-meta">
-        <span>${job.recurrenceSummary}</span>
-        <span>Next run: ${job.nextRunAt ?? "Not scheduled"}</span>
-        <span>Workspace: ${job.workspaceAvailability}</span>
-        <span>Path: ${job.workspacePath}</span>
-        ${job.lastRunFinishedAt ? `<span>Last finished: ${job.lastRunFinishedAt}</span>` : ""}
-        ${isProblemJob(job) ? `<span>Needs attention</span>` : ""}
-      </div>
-    `;
+    const head = document.createElement("div");
+    head.className = "wsp-task-head";
+
+    const titleBlock = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = job.name;
+    const workspace = document.createElement("p");
+    workspace.textContent = job.workspaceLabel;
+    titleBlock.append(title, workspace);
+
+    const status = document.createElement("span");
+    status.className = "wsp-status-chip";
+    status.textContent = statusLabel(job);
+    head.append(titleBlock, status);
+    item.append(head);
+
+    const meta = document.createElement("div");
+    meta.className = "wsp-task-meta";
+    appendMeta(meta, job.recurrenceSummary);
+    appendMeta(meta, `Next run: ${job.nextRunAt ?? "Not scheduled"}`);
+    appendMeta(meta, `Workspace: ${job.workspaceAvailability}`);
+    appendMeta(meta, `Path: ${job.workspacePath}`);
+    if (job.lastRunFinishedAt) {
+      appendMeta(meta, `Last finished: ${job.lastRunFinishedAt}`);
+    }
+    if (isProblemJob(job)) {
+      appendMeta(meta, "Needs attention");
+    }
+    item.append(meta);
 
     const actions = document.createElement("div");
     actions.className = "wsp-inline-actions";

@@ -235,7 +235,15 @@ export async function loadWorkspaceLedger(workspacePath: string): Promise<Worksp
   await ensureDataDir();
   const normalized = normalizeWorkspacePath(workspacePath);
   const ledger = await readLedgerFile(workspaceLedgerPath(normalized));
-  return ledger ?? createEmptyLedger(normalized);
+  if (!ledger) {
+    return createEmptyLedger(normalized);
+  }
+
+  try {
+    return coerceLedgerShape(ledger, workspaceKeyFromPath(normalized)).ledger;
+  } catch {
+    return createEmptyLedger(normalized);
+  }
 }
 
 export async function saveWorkspaceLedger(ledger: WorkspaceLedger): Promise<void> {

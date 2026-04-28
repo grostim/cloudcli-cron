@@ -3,6 +3,7 @@ import path from "node:path";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { listWorkspaceLedgerRecords, loadWorkspaceLedger, saveWorkspaceLedger } from "../../src/server/storage.js";
+import { workspaceKeyFromPath } from "../../src/shared/workspace.js";
 
 describe("storage", () => {
   let tempHome: string;
@@ -266,5 +267,67 @@ describe("storage", () => {
     expect(beta?.ledger?.workspaceKey).toBe("beta");
     expect(alpha?.ledger?.tasks[0]?.workspaceKey).toBe("alpha");
     expect(beta?.ledger?.tasks[0]?.workspaceKey).toBe("beta");
+  });
+
+  it("repairs malformed task and run entries when loading a workspace ledger directly", async () => {
+    const workspacePath = "/tmp/project";
+    const workspaceKey = workspaceKeyFromPath(workspacePath);
+    const dataDir = path.join(tempHome, ".cloudcli-workspace-scheduled-prompts");
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(
+      path.join(dataDir, `${workspaceKey}.json`),
+      JSON.stringify({
+        version: 1,
+        workspaceKey,
+        workspacePath,
+        tasks: [
+          null,
+          {
+            id: "task-valid",
+            workspaceKey,
+            workspacePath,
+            name: "Valid task",
+            prompt: "Valid",
+            recurrence: {
+              scheduleType: "daily",
+              timezone: "Europe/Paris",
+              localTime: "09:00"
+            },
+            recurrenceSummary: "Daily at 09:00 (Europe/Paris)",
+            enabled: true,
+            nextRunAt: null,
+            lastRunStatus: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        runs: [
+          null,
+          {
+            id: "run-valid",
+            occurrenceKey: "task-valid:2026-04-27T08:00:00.000Z",
+            taskId: "task-valid",
+            workspaceKey,
+            scheduledFor: "2026-04-27T08:00:00.000Z",
+            startedAt: null,
+            finishedAt: null,
+            status: "failed",
+            outcomeSummary: "failed",
+            failureReason: "failed",
+            retryOfRunId: null,
+            executionRequest: null
+          }
+        ],
+        updatedAt: new Date().toISOString()
+      }),
+      "utf8"
+    );
+
+    const ledger = await loadWorkspaceLedger(workspacePath);
+
+    expect(ledger.tasks).toHaveLength(1);
+    expect(ledger.runs).toHaveLength(1);
+    expect(ledger.tasks[0]?.id).toBe("task-valid");
+    expect(ledger.runs[0]?.id).toBe("run-valid");
   });
 });

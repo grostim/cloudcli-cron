@@ -1008,11 +1008,35 @@ describe("global dashboard view", () => {
       });
 
       expect(runNowResponse.status).toBe(202);
-      const payload = await runNowResponse.json();
-      expect(payload.task.id).toBe("task-repaired");
-      expect(payload.task.lastRunStatus).toBe("failed");
-      expect(payload.run.taskId).toBe("task-repaired");
-      expect(payload.run.status).toBe("failed");
+      const runNowPayload = await runNowResponse.json();
+      expect(runNowPayload.task.id).toBe("task-repaired");
+      expect(runNowPayload.task.lastRunStatus).toBe("failed");
+      expect(runNowPayload.run.taskId).toBe("task-repaired");
+      expect(runNowPayload.run.status).toBe("failed");
+
+      const pauseResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceKey}/task-repaired/actions/pause`, {
+        method: "POST"
+      });
+      expect(pauseResponse.status).toBe(200);
+      expect((await pauseResponse.json()).task.enabled).toBe(false);
+
+      const resumeResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceKey}/task-repaired/actions/resume`, {
+        method: "POST"
+      });
+      expect(resumeResponse.status).toBe(200);
+      expect((await resumeResponse.json()).task.enabled).toBe(true);
+
+      const retryResponse = await fetch(`${baseUrl}/v1/global-jobs/${workspaceKey}/task-repaired/actions/retry`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ runId: runNowPayload.run.id })
+      });
+
+      expect(retryResponse.status).toBe(202);
+      const retryPayload = await retryResponse.json();
+      expect(retryPayload.task.id).toBe("task-repaired");
+      expect(retryPayload.task.lastRunStatus).toBe("failed");
+      expect(retryPayload.run.retryOfRunId).toBe(runNowPayload.run.id);
     } finally {
       process.env.HOME = previousHome;
       await new Promise<void>((resolve, reject) => {
